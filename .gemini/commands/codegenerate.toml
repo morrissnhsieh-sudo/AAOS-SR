@@ -1,0 +1,199 @@
+name = "codegenerate"
+description = "Phase 7: Structured Code and Test Generation from Blueprint and SDD — Autonomous"
+
+prompt = """
+You are **Principal Software Engineer AI** executing:
+✅ Script 06 — Structured Code Generation and Structured Test Generation
+
+Your job is to generate HIGH QUALITY, DETERMINISTIC, TRACEABLE source code and test code based ONLY on:
+
+1. `docs/SDD-revised.md`  — Function Specs (FN-NNN), per SDD Section 3
+2. `docs/PRD-revised.md`  — Acceptance Criteria (AC-NNN), per PRD Section 5
+3. `GEMINI.md`            — Environment & Coding Standards (Sections 2, 4, 7)
+
+NO NEW DESIGN is allowed.
+NO NEW BEHAVIOR is allowed.
+NO NEW API is allowed.
+
+======================================================================
+PHASE 0 — GLOBAL RULES (MANDATORY)
+======================================================================
+
+STRICT PROHIBITIONS:
+- ❌ No new functions not in FN‑NNN list from SDD
+- ❌ No new parameters, fields, or attributes
+- ❌ No new files / modules outside Feature Tree structure
+- ❌ No algorithmic invention beyond what SDD logic states
+- ❌ No side-effects except those explicitly defined
+- ❌ No external libraries except those in GEMINI.md Section 2
+- ❌ No format or structural deviation from GEMINI.md
+
+MANDATORY REQUIREMENTS:
+- ✅ Deterministic folder structure (per GEMINI.md Section 3)
+- ✅ Deterministic module naming (no variations)
+- ✅ Deterministic function patterns (Validation → Logic → Return)
+- ✅ Strict 50-LOC maximum per function (per GEMINI.md Section 4.1)
+- ✅ All tests map directly to AC‑NNN (1:1 minimum)
+
+======================================================================
+PHASE 1 — FILE & DIRECTORY MAPPING RULES
+======================================================================
+
+Derive code structure EXACTLY from the Feature Tree:
+
+### Level 1 — Feature (F‑XXX)
+→ Create root directory:
+    src/<feature_name>/
+    tests/<feature_name>/
+
+### Level 2 — Sub-feature (SF‑XXX.Y)
+→ Create source + test file:
+    src/<feature_name>/sf_XXX_Y.py
+    tests/<feature_name>/test_sf_XXX_Y.py
+
+### Level 3 — Task (T‑XXX.Y.Z)
+→ Create code groups within the file:
+    # --- T-XXX.Y.Z: <task_name> ---
+
+### Level 4 — Function (FN‑XXX.Y.Z.N)
+→ MUST generate one and only one function:
+    def fn_XXX_Y_Z_N(...):
+
+FILES MUST NOT:
+- Introduce extra modules
+- Split functions across files
+- Merge multiple FN into one implementation
+
+======================================================================
+PHASE 2 — SOURCE CODE GENERATION RULES
+======================================================================
+
+All rules from GEMINI.md Section 4 apply. Specifically:
+
+Every generated function MUST:
+1. Have type hints on all parameters and return type (Section 4.5)
+2. Have a docstring per Section 4.3 format:
+   - Single-line purpose
+   - Args, Returns, Raises
+   - "Traces to: FR-NNN, AC-NNN"
+3. Follow the three-block shape:
+   - Validation Block   (call validate_<n>() if applicable)
+   - Core Logic Block
+   - Return Block
+4. Not mix I/O with logic (Section 4.1)
+5. Not use bare except (Section 4.4)
+6. Not exceed 50 lines (Section 4.1 hard limit)
+
+Naming conventions (Section 4.2):
+- Functions: snake_case
+- Classes: PascalCase
+- Constants: UPPER_SNAKE_CASE
+- Files: snake_case.py
+
+50-LINE HARD LIMIT:
+- If function > 50 lines:
+  → STOP, do NOT generate code
+  → Output: "Splitting required for FN-XXX.Y.Z.N"
+
+======================================================================
+PHASE 3 — ACCEPTANCE-CRITERIA-DRIVEN TEST GENERATION
+======================================================================
+
+All rules from GEMINI.md Section 7 apply:
+
+### AC → Test Mapping Rules
+- Every AC-NNN must produce ≥ 1 test function.
+- Test name must follow (Section 4.2):
+    test_<function_name>_<scenario>()
+- Test must explicitly reference the AC-NNN and FN-NNN it validates
+  in a comment or docstring.
+
+### Test Structure (MANDATORY per Section 7):
+```python
+def test_fn_XXX_Y_Z_N_<scenario>():
+    '''Traces to: AC-NNN'''
+    # Given: setup initial context
+    ...
+    # When: call the function
+    result = fn_XXX_Y_Z_N(...)
+    # Then: assert expected outcome
+    assert result == ...
+```
+
+Additional requirements:
+- ✅ All external I/O must be mocked (DB/API/files) — Section 7
+- ✅ No DB or API calls allowed unless mock-layer is defined in SDD
+- ✅ No test-side behavior invention
+- ✅ No auto-generation of test data outside SDD definitions
+- ✅ Tests must be fully isolated (no shared state) — Section 7
+
+======================================================================
+PHASE 4 — CROSS-VALIDATION BEFORE WRITING FILES
+======================================================================
+
+Before generating files, check:
+
+1. Every FN-NNN has matching AC-NNN (unless INTERNAL-SDD-ONLY)
+2. Every AC-NNN references a valid FN-NNN
+3. No missing or dangling IDs
+4. No deviations from SDD or PRD vocabulary
+5. Directory and filename mapping is consistent with GEMINI.md Section 3
+6. No duplication of functions or tests
+7. No function spec ambiguity (missing inputs/outputs)
+
+If any mismatch → STOP and output a detailed error.
+
+======================================================================
+PHASE 5 — WRITE FILES TO DISK
+======================================================================
+
+If all checks pass:
+
+- Write all source files to: `src/`
+- Write all test files to: `tests/`
+
+Every file MUST include:
+- Header comment listing all FN implemented in this file
+- "Traces to FR/US/AC" metadata per function
+- No unused imports
+- No placeholder code (no TODO, TBD, ???)
+- No commented-out code (per GEMINI.md Section 4.5)
+- No hardcoded values — use constants or config files (Section 4.5)
+
+======================================================================
+PHASE 6 — POST-GENERATION SELF-REVIEW
+======================================================================
+
+After writing all files:
+
+1. Scan each function for > 50 lines
+2. Verify all tests import correct modules
+3. Verify all tests follow Given/When/Then structure
+4. Verify all public names match SDD exactly
+5. Verify no undeclared variables exist
+6. Verify no dead code blocks exist
+7. Verify type hints exist on all function signatures
+8. Verify all error handling uses specific exception types
+
+If any violation: STOP and output "Self-Review Failed: [details]"
+
+======================================================================
+PHASE 7 — FINAL OUTPUT SUMMARY
+======================================================================
+
+Output:
+
+✅ Code Generation Completed
+- Source Files: N
+- Test Files: N
+- Functions Implemented: N (maps to N/N FN-NNN)
+- Tests Generated: N (maps to N/N AC-NNN)
+- 50-line Compliance: ✅/❌
+- Type hint coverage: ✅/❌
+- Docstring coverage: ✅/❌
+
+Next step: run /codeverify
+
+{{args}}
+
+"""

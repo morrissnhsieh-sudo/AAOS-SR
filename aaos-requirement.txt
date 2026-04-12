@@ -1,0 +1,96 @@
+Autonomous Agent Orchestration System
+
+1. The Gateway is the central orchestration engine of the system personal AI assistant platform. Running as a Node.js process inside a Docker container, it serves as the unified hub connecting messaging channels, AI language models, tools, skills, plugins, and memory systems. All requests from users — whether via LINE or the Control UI dashboard — are received, processed, and responded to by the gateway.
+
+2. The gateway operates as a persistent background service, managing stateful agent sessions, dispatching LLM requests, executing tool calls, and coordinating all system components in real time.
+
+3. Components in gateway and the corresponding Role Technology
+a. Channel Manager:	Receives and routes messages from all connected channels	WebSocket / Webhook handlers
+b. Agent Runner: Executes the AI agent loop, manages context windows	Node.js async runtime
+c. Tool Dispatcher: Routes LLM tool calls to skills, plugins, or built-in tools	Internal event bus
+d. Auth & Security: Token validation, device pairing, origin checking	JWT / shared secret
+e. Memory System: Persists conversation history and workspace files	File system (~/.openclaw)
+d. Health Monitor: Monitors gateway and channel health continuously	Interval-based polling
+f. Plugin Engine: Loads and manages provider plugins (Ollama, Anthropic, Google)	Dynamic module loading
+g. Skill Runtime: Executes installed npm-based skill packages	Node.js module resolution
+
+4. The heartbeat subsystem runs on a fixed interval and serves multiple purposes:
+•	Periodic health check — the gateway sends internal pings to confirm all subsystems are responsive
+•	Channel keepalive — messaging channel connections (e.g. WebSocket to Telegram) are kept alive by periodic heartbeat frames to prevent idle disconnection
+•	Memory compaction trigger — long-running sessions periodically compact their context window by summarizing older messages, keeping token usage within limits
+•	Session JSONL flushing — session logs are periodically flushed to disk to prevent data loss
+
+The heartbeat interval is configurable. By default, the health monitor checks every 300 seconds with a startup grace period of 60 seconds and a channel connect grace period of 120 seconds. If a channel fails to connect within the grace period, the health monitor flags it as degraded.
+
+5.When a user sends a message via any channel (e.g. LINE, dashboard), the following flow executes:
+•	Channel adapter receives the raw message payload (HTTP webhook or WebSocket frame)
+•	Message is authenticated and normalized into system's internal message format
+•	Channel Manager routes the message to the appropriate session context
+•	Agent Runner picks up the message and prepends system context (HEARTBEAT.md, BOOT.md, workspace memory)
+•	The full conversation history plus new message is sent to the LLM as a prompt
+•	The LLM responds with either a text reply or a tool call request
+•	If tool call: Tool Dispatcher executes the tool and returns results to the LLM
+•	The LLM generates a final response incorporating tool results
+•	Response is sent back to the user via the originating channel
+
+6. Skills System
+6.1 What Skills Are
+In OpenClaw, skills are npm packages that extend the agent's capabilities by exposing new tools the LLM can call during a conversation. Skills are distinct from Anthropic's SKILL.md instruction files — they are executable JavaScript modules, not markdown documents.
+
+6.2 Skill Installation
+Skills are installed via the CLI and persist across gateway restarts:
+
+•	Install: docker compose run --rm openclaw-cli skills install <package-name>
+•	List: docker compose run --rm openclaw-cli skills list
+•	Disable: docker compose run --rm openclaw-cli skills disable <name>
+
+6.3 Skill Manifest Format
+Each skill is defined by a YAML frontmatter + markdown file specifying its name, description, dependencies, and installation instructions. The gateway reads the manifest to determine what binaries or npm packages the skill requires, and whether to auto-install them.
+
+6.4 Skill Execution
+When the LLM decides to use a skill, it emits a tool call with the skill's tool name and parameters. The Tool Dispatcher identifies the skill, invokes its handler, and returns the result to the LLM as a tool result message. The LLM then incorporates this result into its final response.
+
+7. Plugin Engine
+Plugins are built-in gateway extensions that provide provider integrations and platform-level capabilities. Unlike skills (which are installed on demand), plugins are bundled with OpenClaw and enabled via configuration.
+7.1 plugin and Config Key
+Anthropic: plugins.entries.anthropic
+Ollama: plugins.entries.ollama
+Google: plugins.entries.google
+Browser: plugins.entries.browser
+Agent Communication Protocol Runtime: Internal (embedded)
+
+8. Memory and Knowledge Learning
+8.1 Workspace Memory
+OpenClaw uses file-based memory stored in the ~/.openclaw/workspace/ directory. The agent can read and write files in this workspace, enabling persistent knowledge across conversations. Key memory files include:
+
+•	HEARTBEAT.md — system context file read at the start of every agent run
+•	BOOT.md — boot-time instructions and agent persona configuration
+•	MEMORY.md — user-defined persistent facts and preferences
+•	memory/*.md — automatically generated session summaries saved after each conversation
+
+8.2 Session Compaction
+When a conversation exceeds the LLM's context window limit, the gateway performs automatic context compaction. Older messages are summarized by the LLM into a compact representation, preserving key information while freeing token budget for new messages. This summary is saved to the memory directory for future reference.
+
+8.3 Knowledge Persistence
+The gateway does not perform traditional machine learning or model fine-tuning. Instead, knowledge is accumulated through file-based memory that the agent actively reads and writes. Users can instruct the agent to remember specific facts, and the agent will write them to MEMORY.md. This file is loaded into context on subsequent conversations, giving the illusion of persistent learning.
+
+9. Agent Communication Protocols
+9.1 Internal Communication (ACP)
+The gateway includes an embedded ACP (Agent Communication Protocol) runtime backend. ACP is OpenClaw's internal protocol for structured communication between the gateway and agent nodes. It supports:
+
+•	Structured tool call and tool result message passing
+•	Agent run lifecycle management (start, pause, resume, cancel)
+•	Failover decisions — when an agent run fails, the ACP runtime decides whether to retry, surface the error, or switch providers
+•	Multi-stage pipelines where the output of one agent stage feeds the input of the next
+
+9.2 Node Communication
+In multi-node deployments, the gateway acts as the central coordinator. Remote nodes (additional OpenClaw instances on other machines) connect to the gateway via WebSocket and register themselves. The gateway can dispatch tasks to nodes and aggregate their results. Node pairing follows the same device identity and approval flow used by the Control UI.
+
+9.3 MCP (Model Context Protocol)
+The gateway exposes a loopback MCP server on http://127.0.0.1:<port>/mcp. This allows external MCP-compatible clients (including Claude Code and other MCP clients) to connect to OpenClaw as an MCP server, enabling bidirectional tool sharing between OpenClaw and the broader MCP ecosystem.
+
+9.4 WebSocket Control UI Protocol
+The browser-based Control UI communicates with the gateway exclusively via WebSocket. The protocol supports request-response pairs with unique request IDs, and server-push events for real-time updates (new messages, model status changes, heartbeat events). All WebSocket connections require device identity authentication.
+
+
+The system does not perform traditional machine learning or model fine-tuning. Instead, knowledge is accumulated through file-based memory that the agent actively reads and writes. Users can instruct the agent to remember specific facts, and the agent will write them to MEMORY.md. This file is loaded into context on subsequent conversations, giving the illusion of persistent learning.

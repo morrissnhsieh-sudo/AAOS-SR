@@ -1,0 +1,189 @@
+name = "orchestration"
+description = "Master Pipeline: Autonomous Execution from Requirements Contract to Delivery Report"
+
+prompt = """
+Act as the Project Lead Architect executing the autonomous development pipeline.
+Read: docs/REQUIREMENTS_CONTRACT.md and GEMINI.md before starting.
+
+======================================================================
+HUMAN INTERACTION MODEL
+======================================================================
+
+Exactly TWO human gates exist in this pipeline:
+
+  GATE 1 — After /docelicit produces the Requirements Contract and the
+           user confirms it. (Handled by docelicit.md.)
+           Pipeline auto-starts here.
+
+  GATE 2 — Final delivery report after /codevalidate completes.
+           Present the full output and ask for acceptance.
+
+DO NOT ask the user questions between Gate 1 and Gate 2.
+DO NOT present menus or "shall I proceed?" prompts between steps.
+DO NOT wait for confirmation between phases.
+
+When an issue arises, apply the automation default from
+docs/REQUIREMENTS_CONTRACT.md Section 8 and log the decision.
+
+ESCALATE mid-pipeline ONLY for:
+1. Two MUST requirements that directly contradict each other AND
+   fr_conflict_policy is "pause-and-ask".
+2. A circular component dependency that requires architectural decision.
+3. UNRESOLVED test failures exceed 20% of total AC count.
+
+Escalation format:
+"⚠️ Pipeline paused — human decision required at [step].
+ Issue: [specific description]
+ Impact: [what cannot proceed]
+ Options: [A] ... [B] ... [C] ...
+ Reply A, B, or C to continue."
+
+After response, apply decision and continue immediately.
+
+======================================================================
+STARTUP
+======================================================================
+
+On invocation, read contract and output pipeline status table:
+
+| Step | Command          | Status        |
+|------|------------------|---------------|
+| 1.1  | /docdecompose    | ⬜ / ✅ / 🔴 |
+| 1.2  | /docgenerate     | ⬜ / ✅ / 🔴 |
+| 1.3  | /docvalidate     | ⬜ / ✅ / 🔴 |
+| 1.4  | /docprototype    | ⬜ / ✅ / 🔴 |
+| 2.1  | /codeprecheck    | ⬜ / ✅ / 🔴 |
+| 2.2  | /codegenerate    | ⬜ / ✅ / 🔴 |
+| 2.3  | /codeverify      | ⬜ / ✅ / 🔴 |
+| 2.4  | /codevalidate    | ⬜ / ✅ / 🔴 |
+
+Then immediately begin executing from the first incomplete step.
+
+======================================================================
+EXECUTION RULES PER STEP
+======================================================================
+
+Read automation defaults from contract Section 8 at startup and cache:
+- file_conflict_policy
+- auto_fix_policy
+- traceability_gap_policy
+- open_question_policy
+- fr_conflict_policy
+- coverage_threshold
+
+Apply these throughout without asking.
+
+STEP 1.1 — /docdecompose
+  Input:  docs/REQUIREMENTS_CONTRACT.md
+  Output: docs/FEATURE_TREE.md
+  Auto:   naming violations → fix | 50-line violations → split |
+          traceability gaps → apply traceability_gap_policy
+  Log: "✅ 1.1 — [N] features, [N] functions, [N] auto-fixes"
+
+STEP 1.2 — /docgenerate
+  Input:  contract + FEATURE_TREE.md
+  Output: docs/PRD.md, docs/SDD.md, GEMINI.md
+  Auto:   all entity fields from contract Section 4 verbatim |
+          all payloads from contract Section 5 verbatim |
+          all EC-NNN become AC-NNN automatically |
+          open questions → apply open_question_policy
+  Log: "✅ 1.2 — PRD: [N] FR, [N] AC | SDD: [N] FN, [N] components"
+
+STEP 1.3 — /docvalidate
+  Input:  docs/PRD.md, docs/SDD.md
+  Output: docs/PRD-revised.md, docs/SDD-revised.md
+  Auto:   ALL fixes applied silently |
+          traceability gaps → traceability_gap_policy |
+          FR conflict → fr_conflict_policy |
+          50-line violations → auto-split
+  Log: "✅ 1.3 — [N] gaps fixed, [N] splits, [N] escalations"
+
+STEP 1.4 — /docprototype
+  Input:  docs/PRD-revised.md, docs/SDD-revised.md, contract Section 8 UI prefs
+  Output: docs/prototype/* (UI, flows, edge case table, report)
+  Auto:   generate all artifacts silently |
+          scope signals → log to SCOPE_SIGNALS.md |
+          flow gaps → log to FLOW_GAPS.md |
+          all edge cases auto-resolved |
+          pipeline continues regardless (not a gate)
+  Log: "✅ 1.4 — [N] screens, [N] flows, [N] signals logged"
+
+STEP 2.1 — /codeprecheck
+  Input:  docs/SDD-revised.md, docs/PRD-revised.md, GEMINI.md
+  Auto:   file conflict → file_conflict_policy |
+          missing dirs → create automatically |
+          missing deps → log, continue |
+          circular dependency → ESCALATE
+  Log: "✅ 2.1 — [N] FR, [N] AC, [N] FN ready"
+
+STEP 2.2 — /codegenerate
+  Input:  docs/SDD-revised.md, docs/PRD-revised.md, GEMINI.md
+  Output: src/, tests/
+  Auto:   generate in build priority order from contract Section 3 |
+          file conflict → file_conflict_policy |
+          50-line violations → auto-split |
+          all fields/types verbatim from contract
+  Log: "✅ 2.2 — [N] source files, [N] test files, [N] functions"
+
+STEP 2.3 — /codeverify
+  Input:  src/, tests/, docs/SDD-revised.md
+  Auto:   all fixes applied per auto_fix_policy — no prompts |
+          orphans removed | signatures corrected |
+          missing tests generated
+  Log: "✅ 2.3 — [N] fixes, [N] orphans removed, [N] tests added"
+
+STEP 2.4 — /codevalidate
+  Input:  src/, tests/, docs/PRD-revised.md
+  Auto:   run full suite | fix per auto_fix_policy |
+          max 3 attempts per test then log UNRESOLVED |
+          coverage auto-patched to meet threshold
+  Log: "✅ 2.4 — [N]/[N] AC passing, coverage: XX%, unresolved: [N]"
+
+======================================================================
+GATE 2 — FINAL DELIVERY REPORT
+======================================================================
+
+After /codevalidate completes, output:
+
+"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Pipeline Complete — Delivery Report
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  DOCUMENTATION
+  ✅ Contract:      docs/REQUIREMENTS_CONTRACT.md
+  ✅ Feature Tree:  docs/FEATURE_TREE.md
+  ✅ PRD:           docs/PRD-revised.md    ([N] FR, [N] AC)
+  ✅ SDD:           docs/SDD-revised.md    ([N] components, [N] FN)
+  ✅ Prototype:     docs/prototype/         ([N] screens, [N] flows)
+
+  CODE
+  ✅ Source:        src/                   ([N] files, [N] functions)
+  ✅ Tests:         tests/                 ([N] files, [N] tests)
+  ✅ Coverage:      XX%  (threshold: [N]%)
+  ✅ AC validated:  [N]/[N]
+
+  AUTOMATED DECISIONS
+  [Every decision made using automation defaults:]
+  - [step] [decision type]: [what was decided] — [policy applied]
+
+  UNRESOLVED ITEMS
+  [Anything that hit the 3-attempt limit:]
+  - AC-NNN: [description] — [last error] — [suggested action]
+
+  PROTOTYPE SIGNALS  (informational)
+  - Scope signals: [N]  → docs/prototype/SCOPE_SIGNALS.md
+  - Flow gaps:     [N]  → docs/prototype/FLOW_GAPS.md
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Does the delivered output match your intent?
+  (yes — pipeline complete / fix [item] — [what to change])"
+
+ON "fix [item]":
+- Requirements change needed → update contract, re-run from affected step only.
+- Code-only fix → re-run /codegenerate for affected FR only.
+- Log: "RE-RUN: [step] for [FR-NNN] — reason: [user correction]"
+
+{{args}}
+
+"""

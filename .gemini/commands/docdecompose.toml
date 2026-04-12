@@ -1,0 +1,150 @@
+name = "docdecompose"
+description = "Phase 2: Top-Down Feature Decomposition and 50-Line Gating — Autonomous"
+
+prompt = """
+You are a Professional Systems Architect AI executing **Script 02 — Feature Decomposition**.
+You must transform the Requirements Contract into a complete, deterministic,
+and machine-friendly Feature Tree that feeds into SDD and code generation.
+
+Read: docs/REQUIREMENTS_CONTRACT.md
+Auto-execute all phases below without waiting for user input.
+Self-validate and auto-fix all violations before proceeding.
+
+======================================================================
+PHASE 1 — INPUT EXTRACTION
+======================================================================
+
+From docs/REQUIREMENTS_CONTRACT.md:
+1. Extract all FR-NNN from Section 3 in build priority order.
+2. Extract all TF needs from NFRs in Section 7.
+3. Extract all entities from Section 4 (for data-layer tasks).
+4. Extract all API endpoints from Section 5 (for I/O functions).
+5. Extract all edge cases from Section 6 (each becomes a validate_ function).
+
+Do NOT invent features not in the contract.
+
+======================================================================
+PHASE 2 — TOP-DOWN 4-LEVEL DECOMPOSITION
+======================================================================
+
+Apply strict top-down decomposition across 4 levels:
+
+### Level 1 — Feature
+  User-facing: derived from FR-NNN
+  Technical: derived from NFR-NNN (auth, logging, caching, etc.)
+
+### Level 2 — Sub-feature
+  Distinct coherent behavior within the feature.
+
+### Level 3 — Task
+  Logical, indivisible unit of responsibility.
+
+### Level 4 — Function (atomic, implementable, ≤ 50 LOC)
+  Single implementation unit.
+
+======================================================================
+PHASE 3 — DETERMINISTIC NAMING
+======================================================================
+
+- FR-001, FR-002, ... (user-facing, from contract Section 3 order)
+- TF-001, TF-002, ... (technical features from NFRs)
+- SF-XXX.Y           (sub-features)
+- T-XXX.Y.Z          (tasks)
+- FN-XXX.Y.Z.N       (functions, snake_case)
+
+Rules:
+- Never renumber after revisions.
+- Never skip numbers.
+- Maintain ordering across runs.
+
+======================================================================
+PHASE 4 — MANDATORY SPLITTING RULES (applied automatically)
+======================================================================
+
+1. snake_case on all FN names — auto-fix if violated.
+2. No "and" in description — auto-split if found.
+3. Validation separate from logic — extract to validate_<n>().
+4. I/O separate from logic — extract to io_<n>().
+5. Complex loop bodies — extract body as separate function.
+6. Conditional branches > 10 lines — extract each branch.
+7. 50-line gate — re-apply rules 1–6 recursively until all units ≤ 50 LOC.
+8. No micro-functions < 5 lines unless rules above require it.
+
+Each edge case in contract Section 6 maps to at least one validate_<n>() function.
+Each API endpoint in contract Section 5 maps to at least one io_<n>() function.
+
+======================================================================
+PHASE 5 — NFR DECOMPOSITION
+======================================================================
+
+Every NFR-NNN from contract Section 7 must produce at least one TF-NNN
+with its own 4-level decomposition. Do not skip NFRs.
+
+======================================================================
+PHASE 6 — DEPENDENCY MAP
+======================================================================
+
+After decomposition, generate:
+- FR-XXX depends on FR-YYY (from contract Section 3 build priority)
+- SF-XXX.Y triggers SF-ZZZ.A
+- Task/function sequencing constraints
+
+======================================================================
+PHASE 7 — OUTPUT FORMAT
+======================================================================
+
+## Feature Tree
+
+### FR-001 [Feature Name] (Traces to: [FR-NNN from contract])
+  #### SF-001.1 [Sub-feature]
+    ##### T-001.1.1 [Task]
+      - FN-001.1.1.1 [function_name] | est. N lines | (Traces to: EC-NNN / BR-NNN)
+
+### TF-001 [Technical Feature Name] (Traces to: NFR-NNN)
+  ...
+
+======================================================================
+PHASE 8 — AUTO-VALIDATION & AUTO-FIX
+======================================================================
+
+After generating the Feature Tree, run automatic validation:
+
+1. Traceability check — every FN-NNN must trace to a FR-NNN or NFR-NNN.
+   AUTO-FIX: if gap found, infer parent from context and log:
+   "AUTO-LINKED: FN-XXX.Y.Z.N → FR-NNN (inferred from [reason])"
+
+2. 50-line check — every FN-NNN must have est. LOC ≤ 50.
+   AUTO-FIX: apply splitting rules, log:
+   "AUTO-SPLIT: FN-XXX.Y.Z.N → FN-XXX.Y.Z.N-A + FN-XXX.Y.Z.N-B ([reason])"
+
+3. Naming check — all FN names must be snake_case.
+   AUTO-FIX: rename and log:
+   "AUTO-RENAMED: [old] → [new]"
+
+4. Edge case coverage — every EC-NNN from contract Section 6 must map
+   to at least one validate_<n>() function.
+   AUTO-FIX: generate missing validate function and log.
+
+5. API coverage — every endpoint from contract Section 5 must map
+   to at least one io_<n>() function.
+   AUTO-FIX: generate missing io function and log.
+
+Output auto-fix log before Feature Tree:
+"AUTO-FIX LOG: [N] fixes applied — [list]"
+
+ESCALATE ONLY IF: a feature cannot be traced to ANY contract section
+and context inference fails. Output:
+"⚠️ ESCALATION: [FN-NNN] cannot be traced — human decision required."
+Then pause and wait.
+
+======================================================================
+PHASE 9 — SAVE & PROCEED
+======================================================================
+
+Save Feature Tree to: docs/FEATURE_TREE.md
+Output: "✅ Feature Tree complete — [N] features, [N] functions, [N] auto-fixes applied."
+Immediately proceed to /docgenerate without waiting.
+
+{{args}}
+
+"""

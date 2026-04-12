@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AAOS Control Center</title>
+    <meta name="description" content="AAOS — Autonomous Agent Orchestration System Control Center">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Outfit:wght@500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar">
+            <div class="brand">
+                <h1>AAOS</h1>
+                <span class="badge">Nexus v0.1</span>
+            </div>
+            <nav class="nav-menu">
+                <a href="#" id="nav-chat" class="active" data-view="chat"><span class="icon">💬</span> Chat</a>
+                <a href="#" id="nav-memory" data-view="memory"><span class="icon">🧠</span> Memory</a>
+                <a href="#" id="nav-skills" data-view="skills"><span class="icon">⚡</span> Skills</a>
+                <a href="#" id="nav-wiki" data-view="wiki"><span class="icon">📖</span> Wiki</a>
+                <a href="#" id="nav-usage" data-view="usage"><span class="icon">📊</span> Usage</a>
+                <a href="#" id="nav-health" data-view="health"><span class="icon">🩺</span> Health</a>
+            </nav>
+            <div class="connection-status">
+                <div class="status-indicator" id="statusDot"></div>
+                <span id="statusText">Connecting...</span>
+            </div>
+        </aside>
+
+        <main class="content-area">
+            <!-- Chat View -->
+            <div id="view-chat" class="view active">
+                <header class="chat-header">
+                    <div class="agent-info">
+                        <h2>Primary Agent</h2>
+                        <span class="agent-status" id="agentStatus">Loading...</span>
+                    </div>
+                    <div class="model-switcher">
+                        <label class="model-label" for="modelSelect">Provider</label>
+                        <select id="modelSelect" class="model-select" disabled>
+                            <option value="">Loading...</option>
+                        </select>
+                        <span id="modelSwitchStatus" class="model-switch-status"></span>
+                        <button id="agentModelsToggle" class="btn-models-toggle" title="Per-agent model settings">⚙️ Agent Models</button>
+                    </div>
+                </header>
+                <div id="agentModelsPanel" class="agent-models-panel" style="display:none">
+                    <div class="agent-models-title">Per-Agent Model Configuration</div>
+                    <div id="agentModelRows" class="agent-model-rows">
+                        <div class="empty-state" style="font-size:12px;padding:8px">Loading...</div>
+                    </div>
+                </div>
+                <div class="messages" id="messagesContainer">
+                    <div class="message system-msg"><div class="msg-bubble">Connecting to AAOS Gateway...</div></div>
+                </div>
+                <div class="input-area">
+                    <div id="attachPreview" class="attach-preview" style="display:none"></div>
+                    <form id="chatForm" class="chat-form">
+                        <input type="file" id="fileInput" style="display:none" accept="*/*">
+                        <button type="button" id="attachBtn" class="attach-btn" title="Attach file" disabled>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+                        </button>
+                        <input type="text" id="messageInput" placeholder="Type a message to the agent..." autocomplete="off" disabled>
+                        <button type="submit" id="sendBtn" class="send-btn" disabled>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Memory View -->
+            <div id="view-memory" class="view">
+                <header class="page-header">
+                    <h2>🧠 Agent Memory</h2>
+                    <p class="page-subtitle">Facts injected automatically into every agent prompt. Also auto-extracted from conversations.</p>
+                </header>
+                <div class="page-body">
+                    <div class="card add-card">
+                        <h3>Add Memory Fact</h3>
+                        <form id="memoryForm" class="inline-form">
+                            <input type="text" id="factInput" placeholder="e.g. User prefers concise answers..." autocomplete="off">
+                            <button type="submit" class="btn-primary">Save Fact</button>
+                        </form>
+                    </div>
+                    <div class="card">
+                        <h3>Stored Facts <span id="factCount" class="pill">0</span></h3>
+                        <div id="factList" class="fact-list">
+                            <div class="empty-state">No memory facts stored yet.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Skills View -->
+            <div id="view-skills" class="view">
+                <header class="page-header">
+                    <h2>⚡ Skills</h2>
+                    <p class="page-subtitle">Build new skills from natural language descriptions, or install existing npm packages.</p>
+                </header>
+                <div class="page-body">
+                    <!-- Skill Builder -->
+                    <div class="card add-card build-card">
+                        <h3>🤖 Build a Skill with AI</h3>
+                        <p class="card-desc">Describe what the skill should do in plain English. The agent will generate and register it automatically.</p>
+                        <form id="buildForm" class="stack-form">
+                            <textarea id="buildDescription" placeholder="e.g. A skill that checks the current date and time and returns it in a friendly format" rows="3"></textarea>
+                            <div class="form-row">
+                                <button type="submit" id="buildBtn" class="btn-primary btn-accent">✨ Generate Skill</button>
+                                <div id="buildStatus" class="install-status"></div>
+                            </div>
+                        </form>
+                    </div>
+                    <!-- Manual Install -->
+                    <div class="card">
+                        <h3>Install npm Package</h3>
+                        <form id="skillForm" class="inline-form">
+                            <input type="text" id="packageInput" placeholder="e.g. @aaos/skill-weather" autocomplete="off">
+                            <button type="submit" id="installBtn" class="btn-primary">Install</button>
+                        </form>
+                        <div id="installStatus" class="install-status"></div>
+                    </div>
+                    <!-- Installed Skills List -->
+                    <div class="card">
+                        <h3>Installed Skills <span id="skillCount" class="pill">0</span></h3>
+                        <div id="skillList" class="skill-list">
+                            <div class="empty-state">No skills installed yet.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Wiki View -->
+            <div id="view-wiki" class="view">
+                <header class="page-header wiki-header">
+                    <div>
+                        <h2>📖 Wiki</h2>
+                        <p class="page-subtitle">Compiled knowledge base. LLM-structured, cross-referenced Markdown pages.</p>
+                    </div>
+                    <div class="wiki-header-actions">
+                        <button id="wikiLintBtn" class="btn-small" title="Audit wiki for issues">🔍 Lint</button>
+                        <button id="wikiRefreshBtn" class="btn-small">↻ Refresh</button>
+                    </div>
+                </header>
+                <div class="page-body wiki-body">
+                    <!-- Ingest card -->
+                    <div class="card add-card wiki-ingest-card">
+                        <h3>➕ Ingest New Source</h3>
+                        <p class="card-desc">Paste a URL, file path, or raw text. The Wiki Compiler will extract and structure the knowledge.</p>
+                        <form id="wikiIngestForm" class="stack-form">
+                            <input type="text" id="wikiSourceInput" placeholder="https://... or file path or paste raw text" autocomplete="off">
+                            <input type="text" id="wikiFocusInput" placeholder="Optional: focus (e.g. 'key technical insights')" autocomplete="off">
+                            <div class="form-row">
+                                <button type="submit" id="wikiIngestBtn" class="btn-primary btn-accent">🧠 Compile into Wiki</button>
+                                <div id="wikiIngestStatus" class="install-status"></div>
+                            </div>
+                        </form>
+                    </div>
+                    <!-- Search + pages -->
+                    <div class="wiki-layout">
+                        <div class="wiki-sidebar">
+                            <div class="wiki-search-wrap">
+                                <input type="text" id="wikiSearch" class="wiki-search" placeholder="🔍 Search wiki..." autocomplete="off">
+                            </div>
+                            <div id="wikiPageList" class="wiki-page-list">
+                                <div class="empty-state">Loading...</div>
+                            </div>
+                        </div>
+                        <div class="wiki-content-wrap">
+                            <div id="wikiContentArea" class="wiki-content-area">
+                                <div class="wiki-placeholder">
+                                    <div class="wiki-placeholder-icon">📖</div>
+                                    <div>Select a page to read, or ingest a source to get started.</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Usage / Cost Dashboard -->
+            <div id="view-usage" class="view">
+                <header class="page-header usage-header">
+                    <div>
+                        <h2>📊 Usage &amp; Cost</h2>
+                        <p class="page-subtitle">Token consumption and API cost across all agent activities.</p>
+                    </div>
+                    <div class="usage-period-btns" id="usagePeriodBtns">
+                        <button class="period-btn" data-period="1h">1H</button>
+                        <button class="period-btn" data-period="6h">6H</button>
+                        <button class="period-btn active" data-period="24h">24H</button>
+                        <button class="period-btn" data-period="7d">7D</button>
+                        <button class="period-btn" data-period="30d">30D</button>
+                        <button class="period-btn" data-period="all">All</button>
+                    </div>
+                </header>
+                <div class="page-body">
+                    <!-- Summary cards -->
+                    <div class="usage-cards" id="usageCards">
+                        <div class="usage-card"><div class="uc-label">Total Cost</div><div class="uc-value" id="uc-cost">—</div></div>
+                        <div class="usage-card"><div class="uc-label">Total Tokens</div><div class="uc-value" id="uc-tokens">—</div></div>
+                        <div class="usage-card"><div class="uc-label">Input Tokens</div><div class="uc-value" id="uc-input">—</div></div>
+                        <div class="usage-card"><div class="uc-label">Output Tokens</div><div class="uc-value" id="uc-output">—</div></div>
+                        <div class="usage-card"><div class="uc-label">LLM Calls</div><div class="uc-value" id="uc-calls">—</div></div>
+                        <div class="usage-card"><div class="uc-label">Avg Cost/Call</div><div class="uc-value" id="uc-avg">—</div></div>
+                    </div>
+                    <!-- Timeline chart -->
+                    <div class="card usage-chart-card">
+                        <h3>Cost Over Time <span class="usage-chart-legend">USD</span></h3>
+                        <canvas id="usageChart" height="140"></canvas>
+                        <div id="usageChartEmpty" class="empty-state" style="display:none">No data for this period.</div>
+                    </div>
+                    <!-- Breakdown + Activity log -->
+                    <div class="usage-split">
+                        <div class="card usage-breakdown-card">
+                            <h3>By Agent Role</h3>
+                            <div id="usageByRole" class="usage-breakdown-list"></div>
+                            <h3 style="margin-top:16px">By Model</h3>
+                            <div id="usageByModel" class="usage-breakdown-list"></div>
+                        </div>
+                        <div class="card usage-activity-card">
+                            <h3>Recent Activity <span class="pill" id="usageActivityCount">0</span></h3>
+                            <div id="usageActivityLog" class="usage-activity-log"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Health View -->
+            <div id="view-health" class="view">
+                <header class="page-header">
+                    <h2>🩺 System Health</h2>
+                    <p class="page-subtitle">Live status of all AAOS subsystems. Heartbeat runs every 5 minutes.</p>
+                </header>
+                <div class="page-body">
+                    <div class="health-grid">
+                        <div class="health-card" id="hc-uptime">
+                            <div class="hc-label">Uptime</div>
+                            <div class="hc-value" id="hv-uptime">—</div>
+                        </div>
+                        <div class="health-card" id="hc-sessions">
+                            <div class="hc-label">Sessions</div>
+                            <div class="hc-value" id="hv-sessions">—</div>
+                        </div>
+                        <div class="health-card" id="hc-skills-count">
+                            <div class="hc-label">Active Skills</div>
+                            <div class="hc-value" id="hv-skills-count">—</div>
+                        </div>
+                        <div class="health-card" id="hc-memory-file">
+                            <div class="hc-label">Memory File</div>
+                            <div class="hc-value" id="hv-memory-file">—</div>
+                        </div>
+                    </div>
+                    <div class="card" style="margin-top:16px">
+                        <h3>Subsystems <button id="refreshHealthBtn" class="btn-small">↻ Refresh</button></h3>
+                        <div id="subsystemList" class="subsystem-list">
+                            <div class="empty-state">Loading...</div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <h3>Workspace</h3>
+                        <div class="mono-text" id="workspacePath">—</div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+    <script src="app.js"></script>
+</body>
+</html>

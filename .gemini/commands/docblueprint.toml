@@ -1,0 +1,428 @@
+name = "docblueprint"
+description = "Phase 5c: Architecture Blueprint — Constraint Log, Responsibility Matrix, Dependency Graph, Build Order"
+
+prompt = """
+You are **Principal Systems Architect AI** executing:
+✅ Script 05c — Architecture Blueprint Generation
+
+Your job is to externalize the complete architectural mental model into four
+explicit, machine-readable artifacts BEFORE any code is written.
+
+This command implements the principle: *"The plan existed as a mental model
+before a single file was written, which is why the files are internally
+consistent without circular imports or duplicated logic."*
+
+The Blueprint replaces implicit LLM reasoning with explicit, verifiable
+artifacts that persist across sessions and can be checked mechanically
+by /codegenerate and /codeverify.
+
+Read (in order of authority):
+1. `docs/REQUIREMENTS_CONTRACT.md`  — ground truth for all decisions
+2. `docs/SDD-revised.md` (preferred) or `docs/SDD.md`  — component design
+3. `docs/FEATURE_TREE.md`  — function-level decomposition
+
+Auto-execute all phases. Do NOT ask for user confirmation.
+Log every decision. Escalate ONLY on genuine unresolvable cycles.
+
+======================================================================
+PHASE 0 — INPUT VERIFICATION
+======================================================================
+
+Verify all three source documents are present and non-empty.
+FAIL immediately if any is missing — do not attempt to infer from
+a subset. Output which file is missing and instruct to re-run
+the appropriate upstream command.
+
+======================================================================
+PHASE 1 — ARTIFACT 1: CONSTRAINT DECISION LOG
+======================================================================
+
+### Purpose
+Makes Layer A of the architectural mental model explicit.
+Every hard constraint from the Requirements Contract is mapped to
+a specific, irrevocable implementation decision.
+/codegenerate reads this and never re-derives these decisions itself.
+
+### Extraction rules
+For every constraint in:
+- Contract Section 7 (NFRs with architectural impact)
+- Contract Section 8 Tech Stack (language, framework, DB, auth)
+- SDD Section 8 (Open Questions — now resolved)
+
+Generate one entry per constraint:
+
+```
+CONSTRAINT-NNN | [constraint name]
+  Source:      [Contract S7/NFR-NNN | Contract S8 | SDD S8/OQ-NNN]
+  Decision:    [exact implementation choice — one sentence, no ambiguity]
+  Rationale:   [why this decision, derived from contract constraints]
+  Scope:       [which files/modules this decision applies to]
+  Forbidden:   [what is explicitly prohibited by this decision]
+```
+
+RULES:
+- Every tech stack item from contract Section 8 becomes a CONSTRAINT entry.
+- Every NFR-NNN with architectural impact (Performance, Security, Reliability)
+  becomes a CONSTRAINT entry.
+- Every SDD Open Question becomes a CONSTRAINT entry with the decision
+  applied using open_question_policy from contract Section 8.
+- No constraint may be left undecided. Apply best-practice-default and log.
+- Constraints are immutable once logged — /codegenerate and /codeverify
+  treat them as hard rules, not suggestions.
+
+Save to: `docs/blueprint/CONSTRAINT_LOG.md`
+
+======================================================================
+PHASE 2 — ARTIFACT 2: COMPONENT RESPONSIBILITY MATRIX
+======================================================================
+
+### Purpose
+Makes Layer B of the architectural mental model explicit.
+Every system behavior is assigned to exactly ONE component.
+No two components share responsibility for the same behavior.
+This is the no-duplicated-logic guarantee made verifiable.
+
+### Construction rules
+
+Step 1 — Extract all behaviors from SDD Section 3:
+  Every FN-NNN function spec describes a behavior.
+  Group behaviors by type: I/O, validation, business logic, transport,
+  persistence, presentation, orchestration.
+
+Step 2 — Assign each behavior type to exactly one owner component:
+  The rule: if two components could plausibly implement a behavior,
+  the matrix MUST decide which one owns it — before code is written.
+
+Step 3 — Generate the matrix:
+
+```
+| Behavior Category          | Owner Component         | Forbidden In                        |
+|----------------------------|-------------------------|-------------------------------------|
+| [behavior]                 | [single owner file]     | [explicit list of files/modules]    |
+```
+
+Step 4 — Generate the violation rules:
+  For each row, state the exact violation that /codeverify must detect:
+
+```
+VIOLATION-NNN | [behavior] found in [forbidden component]
+  Detection:   [what /codeverify checks — e.g., "direct DB call in agent file"]
+  Auto-fix:    [extract to owner component, update import]
+  Severity:    HIGH
+```
+
+RULES:
+- Every FN-NNN must be assigned to exactly one component. No FN may be
+  split across files.
+- If two FN-NNNs perform similar behaviors in different components,
+  that is either intentional specialization (document it) or duplication
+  (consolidate into the owner).
+- I/O functions (io_<n>) are ALWAYS owned by their declared component.
+  No other component may re-implement the same I/O.
+- Validation functions (validate_<n>) are owned by the component that
+  enforces that domain rule. Other components call them — never re-implement.
+
+Save to: `docs/blueprint/RESPONSIBILITY_MATRIX.md`
+
+======================================================================
+PHASE 3 — ARTIFACT 3: DIRECTED DEPENDENCY GRAPH
+======================================================================
+
+### Purpose
+Makes Layer C of the architectural mental model explicit.
+Every allowed import relationship is declared before any file is written.
+This is the no-circular-imports guarantee made mechanically verifiable.
+
+### Construction rules
+
+Step 1 — List every file that will be generated by /codegenerate:
+  Derive from FEATURE_TREE.md Level 2 (Sub-features → files) and
+  SDD Section 3 (Components).
+
+Step 2 — For each file, declare its allowed imports:
+  Source: SDD Section 3 Dependencies field for each FN-NNN.
+  Internal imports: only from files listed in the graph.
+  External imports: only from GEMINI.md Section 2 Tech Stack.
+
+Step 3 — Express as a directed graph:
+
+```
+## Dependency Graph
+
+[file_a.py] → (no internal dependencies)
+[file_b.py] → [file_a.py]
+[file_c.py] → [file_a.py], [file_b.py]
+[file_d.py] → [file_b.py]
+
+Legend: A → B means "A imports from B"
+```
+
+Step 4 — TOPOLOGICAL SORT (mandatory):
+  Perform a topological sort of the dependency graph.
+  This produces the Build Order (used in Artifact 4).
+  If topological sort fails → a cycle exists → ESCALATE (see Phase 5).
+
+Step 5 — Generate the import allowlist:
+  For every file, the exhaustive list of permitted internal imports:
+
+```
+IMPORT-ALLOWLIST:
+[file_a.py]:  (none — foundation layer)
+[file_b.py]:  file_a
+[file_c.py]:  file_a, file_b
+[file_d.py]:  file_b
+```
+
+  Any import not on this list found by /codeverify is an
+  UNAUTHORIZED IMPORT → HIGH BLOCKER → auto-fix by removing the import
+  and replacing with a call to the owner component's declared API.
+
+Step 6 — Layer classification:
+  Assign every file to a layer based on its depth in the DAG:
+
+```
+LAYER 0 (foundation):  files with no internal dependencies
+LAYER 1 (services):    files that import only from Layer 0
+LAYER 2 (features):    files that import from Layers 0–1
+LAYER N (entry):       main.py or equivalent — imports from all layers
+```
+
+  LAYER RULE: A file may only import from files in lower-numbered layers.
+  Any import from same layer or higher layer → CIRCULAR DEPENDENCY RISK →
+  refactor to extract a shared Layer 0 module.
+
+Save to: `docs/blueprint/DEPENDENCY_GRAPH.md`
+
+======================================================================
+PHASE 4 — ARTIFACT 4: BUILD ORDER & INTERFACE CONTRACTS
+======================================================================
+
+### Purpose
+Makes Layer D of the architectural mental model explicit.
+Files are generated in dependency order — lowest layer first.
+Every file's public API is declared before the files that import it
+are written. /codegenerate writes to these contracts, not to open specs.
+
+### Construction rules
+
+Step 1 — Build order from topological sort (Artifact 3 result):
+  Layer 0 files first, then Layer 1, then Layer 2, etc.
+  Within a layer, order by FR build priority from contract Section 3.
+
+Step 2 — For each file in build order, declare its interface contract:
+  The interface contract is the exact public API that other files
+  may call. Derived from SDD Section 3 function specs.
+
+```
+BUILD ORDER:
+
+POSITION-01 | [file_path]  (Layer N)
+  Imports:   [none | list]
+  Exposes:
+    [function_name](param: type, ...) → return_type
+      Purpose:  [one sentence from SDD FN-NNN spec]
+      Traces to: FN-NNN
+    [ClassName]
+      __init__(param: type) → None
+      [method_name](param: type) → return_type
+        Traces to: FN-NNN
+  Constants:
+    [CONSTANT_NAME]: type = [value or "configurable"]
+
+POSITION-02 | [file_path]  (Layer N)
+  ...
+```
+
+RULES:
+- Every FN-NNN from the Feature Tree must appear in exactly one file's
+  Exposes section. No FN may be omitted. No FN may appear twice.
+- Interface contracts are binding. /codegenerate must implement the
+  exact signatures declared here. /codeverify checks compliance.
+- If a function needs a different signature than what SDD specifies,
+  STOP and log:
+  "BLUEPRINT CONFLICT: FN-NNN SDD signature conflicts with dependency
+  requirements. Resolve in SDD before proceeding."
+  This is a legitimate escalation point.
+- Constants declared here are extracted from SDD Section 4/5
+  (entity field defaults, API limits, config values). They must not
+  be hardcoded in individual function bodies.
+
+Save to: `docs/blueprint/BUILD_ORDER.md`
+
+======================================================================
+PHASE 5 — CYCLE DETECTION & ESCALATION
+======================================================================
+
+If the topological sort in Phase 3 detects a cycle:
+
+STOP immediately. Do NOT proceed to save any artifacts.
+
+Output:
+
+"🔴 BLUEPRINT FAILED — Circular dependency detected.
+
+Cycle: [FileA] → [FileB] → [FileC] → [FileA]
+
+This means the SDD has a design error: components cannot be
+generated in a consistent order because they mutually depend on
+each other.
+
+Root cause analysis:
+  [FileA] imports [FileB] because: [FN-NNN dependency]
+  [FileB] imports [FileC] because: [FN-NNN dependency]
+  [FileC] imports [FileA] because: [FN-NNN dependency]
+
+Resolution options:
+  [A] Extract the shared behavior into a new Layer 0 module:
+      Create [shared_module.py] containing [behavior].
+      [FileA], [FileB], [FileC] all import from [shared_module.py].
+
+  [B] Invert one dependency using a callback/interface:
+      [FileC] should not import [FileA] directly.
+      Instead, [FileA] passes a callback to [FileC] at init time.
+
+  [C] Merge [FileA] and [FileC] into one component:
+      If their behaviors are tightly coupled, they belong together.
+
+Apply option A, B, or C — or describe a different resolution."
+
+After human provides resolution:
+- Apply the structural change to SDD-revised.md
+- Re-run /docblueprint from the beginning
+- Do NOT attempt to proceed with a cycle in the graph
+
+======================================================================
+PHASE 6 — BLUEPRINT SELF-CONSISTENCY CHECK
+======================================================================
+
+After all four artifacts are generated, run cross-checks:
+
+1. FN coverage — every FN-NNN from FEATURE_TREE.md appears in
+   exactly one Exposes section in BUILD_ORDER.md.
+   AUTO-FIX if missing: add to the correct file's Exposes section.
+   ESCALATE if appears in multiple files: genuine design conflict.
+
+2. Responsibility completeness — every behavior type identified in
+   RESPONSIBILITY_MATRIX.md has an owner component that exists
+   in DEPENDENCY_GRAPH.md.
+   AUTO-FIX if owner doesn't exist: create it as a new Layer 0 module
+   and log: "AUTO-CREATED component: [name] — owner of [behavior]"
+
+3. Constraint coverage — every CONSTRAINT-NNN in CONSTRAINT_LOG.md
+   is reflected in at least one of:
+   - A file in DEPENDENCY_GRAPH.md (structural constraint)
+   - A rule in RESPONSIBILITY_MATRIX.md (behavioral constraint)
+   - A signature in BUILD_ORDER.md (interface constraint)
+   LOG warning if a constraint has no structural reflection:
+   "UNANCHORED CONSTRAINT: CONSTRAINT-NNN has no artifact enforcement"
+
+4. Import allowlist completeness — every import declared in
+   BUILD_ORDER.md Imports sections appears in the allowlist in
+   DEPENDENCY_GRAPH.md.
+   AUTO-FIX: add missing entry to allowlist and log.
+
+======================================================================
+PHASE 7 — CONSOLIDATED BLUEPRINT DOCUMENT
+======================================================================
+
+After all four artifacts pass self-consistency checks, generate
+the consolidated master document that /codegenerate reads:
+
+Save to: `docs/ARCHITECTURE_BLUEPRINT.md`
+
+Structure:
+
+```markdown
+# Architecture Blueprint
+Auto-generated from SDD, Feature Tree, and Requirements Contract.
+This document is the primary input for /codegenerate.
+Do NOT edit manually — re-run /docblueprint if changes are needed.
+
+## Quick Reference
+- Total components: N
+- Total FN-NNN mapped: N
+- Dependency layers: N
+- Build positions: N
+- Open constraints: 0 (all resolved)
+
+## 1. Constraint Decision Log
+[full content of CONSTRAINT_LOG.md]
+
+## 2. Component Responsibility Matrix
+[full content of RESPONSIBILITY_MATRIX.md]
+
+## 3. Directed Dependency Graph
+[full content of DEPENDENCY_GRAPH.md]
+
+## 4. Build Order & Interface Contracts
+[full content of BUILD_ORDER.md]
+```
+
+======================================================================
+PHASE 8 — IMPACT ON /codegenerate
+======================================================================
+
+After Blueprint is saved, output the following instruction block
+that /codegenerate MUST follow:
+
+```
+CODEGENERATE INSTRUCTIONS (derived from Blueprint):
+
+1. Read docs/ARCHITECTURE_BLUEPRINT.md before writing any file.
+
+2. Write files in the exact sequence from Section 4 (Build Order).
+   Do NOT generate files out of order.
+
+3. For each file, implement ONLY the functions listed in its
+   Exposes section. No additional functions.
+
+4. For each function, use EXACTLY the signature declared in the
+   Interface Contract. No parameter additions or removals.
+
+5. Add ONLY the imports listed in the file's Import Allowlist.
+   No other internal imports are permitted.
+
+6. Apply every relevant CONSTRAINT from Section 1 to the file.
+   Constraints marked with this file's scope are mandatory.
+
+7. Respect the Responsibility Matrix (Section 2).
+   If a behavior belongs to another component's owner,
+   call that component's declared API — never re-implement.
+
+8. After writing each file, verify:
+   - Line count ≤ 50 per function
+   - All declared functions are implemented
+   - All imports are on the allowlist
+   - No behavior from another component's row is implemented here
+```
+
+======================================================================
+PHASE 9 — SAVE & PROCEED
+======================================================================
+
+Save all files:
+  docs/blueprint/CONSTRAINT_LOG.md
+  docs/blueprint/RESPONSIBILITY_MATRIX.md
+  docs/blueprint/DEPENDENCY_GRAPH.md
+  docs/blueprint/BUILD_ORDER.md
+  docs/ARCHITECTURE_BLUEPRINT.md
+
+Output:
+
+"✅ Architecture Blueprint complete
+ - Constraints resolved: N
+ - Components mapped: N
+ - FN-NNN assigned: N/N
+ - Dependency layers: N
+ - Build positions: N
+ - Cycles detected: 0 ✅
+ - Responsibility conflicts: 0 ✅
+ - Auto-fixes applied: N (see log)
+
+ /codegenerate will now write files in the following order:
+ [list build order — position, filename, layer]"
+
+Immediately proceed to /docprototype without waiting.
+
+{{args}}
+"""
