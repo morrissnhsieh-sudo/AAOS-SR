@@ -20,6 +20,7 @@
                 <a href="#" id="nav-memory" data-view="memory"><span class="icon">🧠</span> Memory</a>
                 <a href="#" id="nav-skills" data-view="skills"><span class="icon">⚡</span> Skills</a>
                 <a href="#" id="nav-wiki" data-view="wiki"><span class="icon">📖</span> Wiki</a>
+                <a href="#" id="nav-schedule" data-view="schedule"><span class="icon">🗓</span> Scheduler</a>
                 <a href="#" id="nav-usage" data-view="usage"><span class="icon">📊</span> Usage</a>
                 <a href="#" id="nav-health" data-view="health"><span class="icon">🩺</span> Health</a>
             </nav>
@@ -176,6 +177,64 @@
                             </div>
                         </div>
                     </div>
+                </div>
+            </div>
+
+            <!-- Scheduler View -->
+            <div id="view-schedule" class="view">
+                <header class="page-header schedule-header">
+                    <div>
+                        <h2>🗓 Scheduler</h2>
+                        <p class="page-subtitle">Background agent tasks running on cron. Results are pushed to chat when notify is enabled.</p>
+                    </div>
+                    <div class="schedule-header-actions">
+                        <button id="scheduleRefreshBtn" class="btn-small">↻ Refresh</button>
+                        <button id="scheduleNewBtn" class="btn-primary btn-sm">＋ New Job</button>
+                    </div>
+                </header>
+                <div class="page-body">
+                    <!-- Create form (collapsible) -->
+                    <div class="card add-card" id="scheduleCreateCard" style="display:none">
+                        <h3>✨ Create Scheduled Job</h3>
+                        <form id="scheduleForm" class="schedule-form">
+                            <div class="sched-row">
+                                <div class="sched-field">
+                                    <label>Job Name</label>
+                                    <input type="text" id="sched-name" placeholder="e.g. daily-news" autocomplete="off">
+                                </div>
+                                <div class="sched-field">
+                                    <label>Schedule</label>
+                                    <input type="text" id="sched-cron" placeholder="e.g. every day at 8am" autocomplete="off">
+                                </div>
+                            </div>
+                            <div class="sched-field">
+                                <label>Message (instruction the agent receives)</label>
+                                <textarea id="sched-message" rows="2" placeholder="e.g. Search for top AI news and save the top 3 headlines to memory."></textarea>
+                            </div>
+                            <div class="sched-bottom-row">
+                                <label class="sched-toggle-label">
+                                    <input type="checkbox" id="sched-notify">
+                                    <span class="sched-toggle-text">🔔 Notify in chat when job fires</span>
+                                </label>
+                                <div class="sched-form-actions">
+                                    <button type="button" id="schedCancelBtn" class="btn-ghost">Cancel</button>
+                                    <button type="submit" id="schedSaveBtn" class="btn-primary">Create Job</button>
+                                </div>
+                            </div>
+                            <div id="schedFormStatus" class="install-status"></div>
+                        </form>
+                    </div>
+
+                    <!-- Jobs list -->
+                    <div class="card">
+                        <h3>Scheduled Jobs <span id="scheduleCount" class="pill">0</span></h3>
+                        <div id="scheduleList" class="schedule-list">
+                            <div class="empty-state">No scheduled jobs yet. Click <strong>+ New Job</strong> to create one.</div>
+                        </div>
+                    </div>
+
+                    <!-- Run result toast -->
+                    <div id="schedRunResult" class="sched-run-result" style="display:none"></div>
                 </div>
             </div>
 

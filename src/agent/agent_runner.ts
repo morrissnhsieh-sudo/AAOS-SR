@@ -22,8 +22,47 @@ export function validate_context_file_exists(filePath: string): boolean {
     return false;
 }
 
+/**
+ * Classify each memory line as either a BEHAVIORAL INSTRUCTION or a USER FACT.
+ *
+ * Instruction patterns — imperative phrases the agent must obey:
+ *   "search X first", "always use X", "never do Y", "prefer X", "use X for Y", etc.
+ * Everything else is treated as a passive fact about the user.
+ */
+const INSTRUCTION_PATTERN = /\b(always|never|don't|do not|must|should|use\s+\w|search|check|look|prefer|prioritize|first|before|instead|avoid|make sure|remember to|only use|don't use)\b/i;
+
+export function split_memory_into_sections(memory: string | null): { instructions: string; facts: string } {
+    if (!memory) return { instructions: '', facts: '' };
+    const lines = memory.split('\n').filter(l => l.trim());
+    const instructions: string[] = [];
+    const facts: string[] = [];
+    for (const line of lines) {
+        (INSTRUCTION_PATTERN.test(line) ? instructions : facts).push(line);
+    }
+    return {
+        instructions: instructions.join('\n'),
+        facts:        facts.join('\n'),
+    };
+}
+
 export function build_system_context_prefix(heartbeat: string | null, boot: string | null, memory: string | null, skills: string = ''): string {
-    return `[BOOT]\n${boot || ''}\n[HEARTBEAT]\n${heartbeat || ''}\n[MEMORY]\n${memory || ''}\n${skills ? skills + '\n' : ''}`;
+    const { instructions, facts } = split_memory_into_sections(memory);
+
+    const instructionsBlock = instructions
+        ? `\n## MANDATORY BEHAVIORAL INSTRUCTIONS\nThe user has set the following rules. You MUST follow them in EVERY response without exception:\n${instructions}\n`
+        : '';
+
+    const factsBlock = facts
+        ? `\n## USER CONTEXT & FACTS\n${facts}\n`
+        : '';
+
+    return [
+        boot       ? `[BOOT]\n${boot}`           : '',
+        heartbeat  ? `[HEARTBEAT]\n${heartbeat}` : '',
+        instructionsBlock,
+        factsBlock,
+        skills     ? skills                       : '',
+    ].filter(Boolean).join('\n');
 }
 
 export function assemble_llm_prompt(systemPrefix: string, history: Message[], newMessage: InternalMessage): LlmPrompt {
@@ -173,26 +212,24 @@ async function extract_and_persist_memory_facts(
         try { existingMemory = fs.readFileSync(memFile, 'utf8'); } catch { /* file may not exist yet */ }
 
         const extractPrompt: LlmPrompt = {
-            system: `You are a strict long-term memory extraction agent. Extract ONLY facts that are permanently true about the USER and should persist across all future sessions.
+            system: `You are a long-term memory extraction agent. Extract facts AND behavioral instructions from the conversation that should persist across all future sessions.
 
-GOOD candidates (save these):
+GOOD candidates — save these:
 - User's real name, preferred name, or identity
-- User's stated language, timezone, or location (city/country, NOT current weather)
+- User's stated language, timezone, or location
 - User's long-term project names, role, or occupation
-- User's explicitly stated persistent preferences (e.g. "always use TypeScript", "respond in Chinese")
-- Physical description of user if captured from a photo
+- User's explicit behavioral instructions (e.g. "always search the wiki first", "never use Python 2", "respond in Chinese", "check local data before answering")
+- User's persistent preferences about HOW the agent should behave
 
-DO NOT save (output [] for these):
-- Weather, temperature, or any time-sensitive/volatile data
-- System scan results (open ports, running processes, installed software)
-- OS or shell information (this changes and should be detected live)
-- Tool names, skill names, or agent capabilities
-- Greetings, casual exchanges, or one-off questions with no lasting context
+DO NOT save:
+- Weather, temperature, or any time-sensitive data
+- System scan results or runtime environment details
+- Greetings, casual exchanges, or one-off questions
 - Anything already present verbatim in existing memory
 - Agent actions, tool results, or what the assistant did
-- Anything the assistant said (only user-relevant facts)
 
-Output ONLY a JSON array of concise strings. E.g.: ["User's name is Alex.", "User prefers replies in Traditional Chinese."]
+Behavioral instructions are HIGH PRIORITY — if the user says how the agent should behave, always extract it.
+Output ONLY a JSON array of concise strings. E.g.: ["User's name is Alex.", "Always search local wiki before answering domain questions."]
 Output [] if nothing qualifies.`,
             messages: [{
                 role: 'user',
@@ -465,11 +502,98 @@ export async function start_agent_run(session: Session, message: InternalMessage
             .catch(e => console.warn(`[Memory] Background extraction error: ${e.message}`));
 
         return { finalResponse };
-    } catch (e) {
-        throw e;
+    } catch (e: any) {
+        // ── Classify the error and deliver a human-readable message to the chat ──
+        const errMsg = build_llm_error_message(e);
+        console.error(`[Agent] Run ${runId} failed: ${e?.message || e}`);
+        try {
+            await deliver_text_response_to_channel(session, errMsg);
+        } catch { /* best-effort — don't throw if delivery itself fails */ }
+        return { finalResponse: errMsg };
     } finally {
         runStates.delete(runId);
     }
+}
+
+/**
+ * Convert a raw LLM API error into a friendly, actionable message for the user.
+ */
+function build_llm_error_message(e: any): string {
+    const raw   = String(e?.message || e || 'Unknown error');
+    const status = e?.status ?? e?.statusCode ?? e?.code;
+
+    // ── Google Vertex AI — 403 PERMISSION_DENIED ───────────────────────────────
+    if (raw.includes('PERMISSION_DENIED') || raw.includes('"code":403') || status === 403) {
+        const project = process.env.VERTEX_PROJECT_ID || 'd-sxd110x-ssd1-cdl';
+        return [
+            `⚠️ **LLM Error — Google Vertex AI permission denied** (HTTP 403)`,
+            ``,
+            `Your Google Cloud project **\`${project}\`** does not have permission to call Vertex AI.`,
+            ``,
+            `**Quick fix — switch to Anthropic Claude:**`,
+            `1. Get an API key at https://console.anthropic.com`,
+            `2. Add to your \`.env\` file:`,
+            `   \`\`\``,
+            `   AAOS_LLM_PROVIDER=anthropic`,
+            `   ANTHROPIC_API_KEY=sk-ant-...`,
+            `   \`\`\``,
+            `3. Restart AAOS`,
+            ``,
+            `**Or fix Vertex AI access:**`,
+            `- Enable the Vertex AI API: https://console.cloud.google.com/apis/library/aiplatform.googleapis.com`,
+            `- Grant your service account the \`Vertex AI User\` role`,
+            `- Verify \`GOOGLE_APPLICATION_CREDENTIALS\` points to the correct service account JSON`,
+        ].join('\n');
+    }
+
+    // ── 401 Unauthorized / Unauthenticated ────────────────────────────────────
+    if (raw.includes('UNAUTHENTICATED') || raw.includes('"code":401') || status === 401) {
+        const provider = process.env.AAOS_LLM_PROVIDER || 'google';
+        return [
+            `⚠️ **LLM Error — Authentication failed** (HTTP 401)`,
+            ``,
+            `Provider: \`${provider}\``,
+            ``,
+            `Check that your API key / credentials are set correctly in \`.env\`:`,
+            provider === 'anthropic'
+                ? '- `ANTHROPIC_API_KEY=sk-ant-...`'
+                : '- `GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json`',
+        ].join('\n');
+    }
+
+    // ── 429 Rate limit ────────────────────────────────────────────────────────
+    if (raw.includes('RESOURCE_EXHAUSTED') || raw.includes('Resource exhausted') || raw.includes('"code":429') || status === 429) {
+        const provider = process.env.AAOS_LLM_PROVIDER || 'google';
+        const isGoogle = provider === 'google' || provider === 'anthropic-vertex';
+        return [
+            `⚠️ **LLM Error — API quota exhausted** (HTTP 429)`,
+            ``,
+            `Provider \`${provider}\` is rate-limiting requests. This is usually caused by:`,
+            `- A scheduled job running too frequently (e.g. every minute)`,
+            `- Hitting the free-tier daily token or request cap`,
+            ``,
+            `**Quick fixes:**`,
+            `1. Delete any frequent scheduled jobs (🗓 Scheduler tab → 🗑 Delete)`,
+            `2. Switch provider: set \`AAOS_LLM_PROVIDER=anthropic\` in \`.env\` and restart`,
+            isGoogle ? `3. Check quota: https://console.cloud.google.com/apis/api/aiplatform.googleapis.com/quotas?project=${process.env.VERTEX_PROJECT_ID || 'd-sxd110x-ssd1-cdl'}` : `3. Check usage at your provider's console`,
+            ``,
+            `AAOS will retry automatically in 15–30 seconds if you send your message again.`,
+        ].join('\n');
+    }
+
+    // ── 404 Model not found ───────────────────────────────────────────────────
+    if (raw.includes('"code":404') || status === 404) {
+        const model = process.env.VERTEX_MODEL || process.env.ANTHROPIC_MODEL || 'unknown';
+        return [
+            `⚠️ **LLM Error — Model not found** (HTTP 404)`,
+            ``,
+            `Model \`${model}\` was not found on the provider's API.`,
+            `Check that \`VERTEX_MODEL\` or \`ANTHROPIC_MODEL\` is set to a valid model name.`,
+        ].join('\n');
+    }
+
+    // ── Generic fallback ──────────────────────────────────────────────────────
+    return `⚠️ **LLM Error**\n\n${raw.slice(0, 500)}\n\nCheck the server logs for the full stack trace.`;
 }
 
 export function pause_agent_run(runId: string): void {

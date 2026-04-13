@@ -106,6 +106,9 @@ export function register_scheduler_tools(): void {
 
     // ── schedule_create ───────────────────────────────────────────────────────
 
+    // ── Helper: detect if a job is a user-facing reminder / notification ─────────
+    const REMINDER_KEYWORDS = /\b(remind|reminder|alert|notify|notification|drink|eat|take|meeting|deadline|alarm|ping|check in)\b/i;
+
     register_tool(
         {
             name: 'schedule_create',
@@ -114,7 +117,10 @@ export function register_scheduler_tools(): void {
                 'The agent will receive "message" on each scheduled tick and run with full tool access. ' +
                 'Use cron expressions (e.g. "0 8 * * *") or natural language ' +
                 '("every day at 8:00am", "every monday at 9am", "every 30 minutes", "@hourly"). ' +
-                'Returns confirmation with next run time.',
+                'Set notify=true for reminders/alerts so the result is pushed back to the user chat. ' +
+                'IMPORTANT: After calling this tool you MUST call schedule_run_now with the same name to verify the job works, ' +
+                'then show the test result to the user. ' +
+                'NEVER use a "reminder_scheduler" tool — it does not exist. Use schedule_create directly.',
             parameters: {
                 type: 'object',
                 properties: {
@@ -130,6 +136,10 @@ export function register_scheduler_tools(): void {
                         type: 'string',
                         description: 'The instruction the agent receives each time this job runs'
                     },
+                    notify: {
+                        type: 'boolean',
+                        description: 'If true, the job result is pushed to the user chat as a notification when the job fires. Set to true for reminders, alerts, and any job the user should see. Auto-set to true when the job involves reminding/alerting the user.'
+                    },
                     session_id: {
                         type: 'string',
                         description: 'Session ID for job runs (default: "scheduler:<name>"). Use same ID to group related jobs.'
@@ -141,13 +151,13 @@ export function register_scheduler_tools(): void {
                     },
                     run_now: {
                         type: 'boolean',
-                        description: 'If true, also run the job immediately after creating it (default: false)'
+                        description: 'If true, also run the job immediately after creating it for verification (default: false). RECOMMENDED: always set true to confirm the job works.'
                     }
                 },
                 required: ['name', 'cron', 'message']
             }
         },
-        async (args: { name: string; cron: string; message: string; session_id?: string; tags?: string[]; run_now?: boolean }) => {
+        async (args: { name: string; cron: string; message: string; notify?: boolean; session_id?: string; tags?: string[]; run_now?: boolean }) => {
             try {
                 // Sanitise name
                 const name = args.name.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
@@ -159,13 +169,18 @@ export function register_scheduler_tools(): void {
                     return { ok: false, error: `Invalid schedule: "${args.cron}" (resolved to "${cronExpr}"). Use a valid cron expression or natural language like "every day at 8am".` };
                 }
 
+                // Auto-detect notify: true when the job or message looks like a reminder/alert
+                const autoNotify = REMINDER_KEYWORDS.test(name) || REMINDER_KEYWORDS.test(args.message);
+                const notify = args.notify ?? autoNotify;
+
                 // Deactivate existing if present
                 deactivate_job(name);
 
                 // Create and persist
                 const job = make_job(name, cronExpr, args.message, {
                     session_id: args.session_id,
-                    tags: args.tags,
+                    tags:       args.tags,
+                    notify,
                 });
                 upsert_job(job);
 
@@ -188,11 +203,15 @@ export function register_scheduler_tools(): void {
                     cron: cronExpr,
                     schedule_input: args.cron,
                     message: args.message,
+                    notify,
                     session_id: job.session_id,
                     status: 'active',
                     next_run: next_run_label(cronExpr),
                     os: env.platform,
                     test_result,
+                    verification_required: !args.run_now
+                        ? 'IMPORTANT: Call schedule_run_now(name="' + name + '") NOW to verify this job works, then show the result to the user.'
+                        : null,
                 };
             } catch (err: any) {
                 return { ok: false, error: err.message };

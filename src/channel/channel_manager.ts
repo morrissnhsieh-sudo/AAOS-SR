@@ -182,6 +182,22 @@ export function io_deliver_to_ws_client(clientId: string, r: WsResponse): void {
     if (ws) ws.send(JSON.stringify(r));
 }
 
+/**
+ * Push a plain text message to ALL currently connected WebSocket clients.
+ * Used by the scheduler engine to deliver job notifications and reminders.
+ */
+export function broadcast_to_all_ws(content: string): void {
+    if (wsClients.size === 0) {
+        console.warn('[Channel] broadcast_to_all_ws: no active WS clients — notification dropped');
+        return;
+    }
+    const msg: WsResponse = { request_id: '', type: 'response', content, status: 'ok' };
+    const str = JSON.stringify(msg);
+    for (const ws of wsClients.values()) {
+        try { ws.send(str); } catch { /* ignore closed sockets */ }
+    }
+}
+
 export function validate_ws_device_token(t: string): DeviceTokenPayload | null { return validate_device_jwt(t, process.env.JWT_SECRET || 'secret'); }
 
 export function reject_expired_device_token(ws: WebSocket): void {

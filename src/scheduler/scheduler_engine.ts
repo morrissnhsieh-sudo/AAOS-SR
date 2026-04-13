@@ -130,11 +130,16 @@ function _activate(job: ScheduledJob): void {
 async function _execute_job(job: ScheduledJob): Promise<string> {
     try {
         // Dynamically import to avoid circular dependency at module load time
-        const { get_or_create_session } = await import('../channel/channel_manager');
-        const { start_agent_run }       = await import('../agent/agent_runner');
-        const { v4: uuidv4 }            = await import('uuid');
+        const { get_or_create_session, broadcast_to_all_ws } = await import('../channel/channel_manager');
+        const { start_agent_run }                            = await import('../agent/agent_runner');
+        const { v4: uuidv4 }                                 = await import('uuid');
 
-        const session = get_or_create_session('scheduler', job.session_id);
+        // job.session_id is already fully-qualified (e.g. "scheduler:test-ping").
+        // Split into channel + userId so get_or_create_session doesn't double-prefix it.
+        const colonIdx  = job.session_id.indexOf(':');
+        const channelPart = colonIdx >= 0 ? job.session_id.slice(0, colonIdx) : 'scheduler';
+        const userPart    = colonIdx >= 0 ? job.session_id.slice(colonIdx + 1) : job.session_id;
+        const session = get_or_create_session(channelPart, userPart);
         const msg = {
             id:         uuidv4(),
             session_id: session.id,
@@ -144,9 +149,17 @@ async function _execute_job(job: ScheduledJob): Promise<string> {
             token_count: 0,
         };
 
-        const result  = await start_agent_run(session, msg);
+        const result   = await start_agent_run(session, msg);
         const response = result.finalResponse ?? '(no response)';
         console.log(`[Scheduler] Job "${job.name}" completed — ${response.length} chars`);
+
+        // ── Push notification to all active WebSocket clients ──────────────────
+        if (job.notify) {
+            const notification = `🔔 **Reminder — ${job.name}**\n\n${response}`;
+            broadcast_to_all_ws(notification);
+            console.log(`[Scheduler] Notification broadcast for "${job.name}"`);
+        }
+
         return response;
     } catch (err: any) {
         const errMsg = `ERROR: ${err.message}`;

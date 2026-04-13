@@ -14,8 +14,9 @@ import { io_list_installed_skills, io_disable_skill, io_receive_skill_install_re
 import { register_native_tools } from './tools/native_tools';
 import { register_iot_tools } from './tools/iot_tools';
 import { register_wiki_tools, list_wiki_pages, read_wiki_page, ensure_wiki_structure } from './tools/wiki_tools';
-import { start_scheduler_engine, stop_scheduler_engine } from './scheduler/scheduler_engine';
+import { start_scheduler_engine, stop_scheduler_engine, activate_job, deactivate_job, run_job_now } from './scheduler/scheduler_engine';
 import { register_scheduler_tools } from './scheduler/scheduler_tools';
+import { load_jobs, get_job, upsert_job, delete_job, update_job, make_job } from './scheduler/scheduler_store';
 import { detect_os_environment } from './scheduler/os_env';
 import { execute_tool } from './tools/tool_dispatcher';
 import { load_usage, summarise_usage, get_pricing_table } from './usage/usage_tracker';
@@ -375,6 +376,57 @@ app.post('/api/wiki/lint', async (req, res) => {
     } catch (e: any) {
         res.status(500).json({ ok: false, error: e.message });
     }
+});
+
+// ── Scheduler REST API ─────────────────────────────────────────────────────────
+
+app.get('/api/schedule', (_req, res) => {
+    res.json(load_jobs());
+});
+
+app.post('/api/schedule', (req, res) => {
+    try {
+        const { name, cron, message, notify = false, tags = [], session_id } = req.body || {};
+        if (!name || !cron || !message) { res.status(400).json({ ok: false, error: 'name, cron and message are required' }); return; }
+        const safeName = name.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+        deactivate_job(safeName);
+        const job = make_job(safeName, cron, message, { notify, tags, session_id });
+        upsert_job(job);
+        const activation = activate_job(job);
+        if (!activation.ok) { delete_job(safeName); res.status(500).json({ ok: false, error: activation.error }); return; }
+        res.json({ ok: true, job });
+    } catch (e: any) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.post('/api/schedule/:name/pause', (req, res) => {
+    const job = get_job(req.params.name);
+    if (!job) { res.status(404).json({ ok: false, error: 'Job not found' }); return; }
+    deactivate_job(job.name);
+    update_job(job.name, { enabled: false });
+    res.json({ ok: true });
+});
+
+app.post('/api/schedule/:name/resume', (req, res) => {
+    const job = get_job(req.params.name);
+    if (!job) { res.status(404).json({ ok: false, error: 'Job not found' }); return; }
+    const updated = update_job(job.name, { enabled: true });
+    if (updated) { activate_job(updated); }
+    res.json({ ok: true });
+});
+
+app.post('/api/schedule/:name/run', async (req, res) => {
+    const job = get_job(req.params.name);
+    if (!job) { res.status(404).json({ ok: false, error: 'Job not found' }); return; }
+    try {
+        const result = await run_job_now(job);
+        res.json({ ok: true, result: result.slice(0, 1000) });
+    } catch (e: any) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.delete('/api/schedule/:name', (req, res) => {
+    deactivate_job(req.params.name);
+    const deleted = delete_job(req.params.name);
+    res.json({ ok: deleted });
 });
 
 const server = createServer(app);

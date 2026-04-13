@@ -26,7 +26,16 @@ export const SESSION_LOG_DIR = 'sessions';
 export const MEMORY_DIR = 'memory';
 export const WORKSPACE_DIR = 'workspace';
 
-function getWorkspace() { return process.env.AAOS_WORKSPACE || path.join(process.env.HOME || '', '.aaos'); }
+function getWorkspace() { return process.env.AAOS_WORKSPACE || path.join(process.env.HOME || process.env.USERPROFILE || '', '.aaos'); }
+
+/**
+ * Sanitise a session ID for use as a filename.
+ * Colons are forbidden in Windows NTFS filenames (reserved for alternate data streams).
+ * "ws:abc123" → "ws_abc123",  "scheduler:test-ping" → "scheduler_test-ping"
+ */
+function session_id_to_filename(sessionId: string): string {
+    return sessionId.replace(/:/g, '_');
+}
 
 export async function orchestrate_context_compaction(session: Session): Promise<void> {
     const keepRecent = parseInt(process.env.COMPACTION_KEEP_RECENT ?? String(DEFAULT_COMPACTION_KEEP_RECENT));
@@ -55,13 +64,13 @@ export async function summarize_messages_via_llm(messages: Message[], provider: 
 export async function io_save_compaction_summary(sessionId: string, summary: string): Promise<void> {
     const dir = path.join(getWorkspace(), MEMORY_DIR);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(path.join(dir, `${sessionId}_summary.md`), summary, 'utf8');
+    fs.writeFileSync(path.join(dir, `${session_id_to_filename(sessionId)}_summary.md`), summary, 'utf8');
 }
 
 export async function io_append_message_to_session_log(sessionId: string, message: Message): Promise<void> {
     const dir = path.join(getWorkspace(), SESSION_LOG_DIR);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    fs.appendFileSync(path.join(dir, `${sessionId}.jsonl`), JSON.stringify(message) + '\n');
+    fs.appendFileSync(path.join(dir, `${session_id_to_filename(sessionId)}.jsonl`), JSON.stringify(message) + '\n');
 }
 
 export function validate_session_log_writable(logPath: string): boolean {
@@ -69,7 +78,7 @@ export function validate_session_log_writable(logPath: string): boolean {
 }
 
 export async function io_initialize_session_log_file(sessionId: string): Promise<string> {
-    const p = path.join(getWorkspace(), SESSION_LOG_DIR, `${sessionId}.jsonl`);
+    const p = path.join(getWorkspace(), SESSION_LOG_DIR, `${session_id_to_filename(sessionId)}.jsonl`);
     if (!fs.existsSync(p)) fs.writeFileSync(p, '');
     return p;
 }
@@ -186,7 +195,7 @@ export function append_validated_memory_fact(workspace: string, fact: string): {
 }
 
 export async function io_write_session_jsonl(sessionId: string, messages: Message[]): Promise<void> {
-    const p = path.join(getWorkspace(), SESSION_LOG_DIR, `${sessionId}.jsonl`);
+    const p = path.join(getWorkspace(), SESSION_LOG_DIR, `${session_id_to_filename(sessionId)}.jsonl`);
     if (messages.length === 0) return;
     fs.writeFileSync(p, messages.map(m => JSON.stringify(m)).join('\n') + '\n');
 }
@@ -199,7 +208,7 @@ export async function io_write_session_jsonl(sessionId: string, messages: Messag
  * have no preceding tool_use in the same request).
  */
 export function io_load_session_history(sessionId: string, maxMessages: number = 50): Message[] {
-    const p = path.join(getWorkspace(), SESSION_LOG_DIR, `${sessionId}.jsonl`);
+    const p = path.join(getWorkspace(), SESSION_LOG_DIR, `${session_id_to_filename(sessionId)}.jsonl`);
     try {
         const lines = fs.readFileSync(p, 'utf8').split('\n').filter(l => l.trim());
         const messages: Message[] = [];

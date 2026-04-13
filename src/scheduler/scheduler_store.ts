@@ -16,6 +16,7 @@ export interface ScheduledJob {
     message:     string;   // agent instruction sent on each tick
     session_id:  string;   // session to run under, e.g. "scheduler:daily-inventory"
     enabled:     boolean;
+    notify:      boolean;  // if true, broadcast result to all active WebSocket clients
     created_at:  string;   // ISO timestamp
     updated_at:  string;
     last_run_at: string | null;
@@ -88,7 +89,7 @@ export function make_job(
     name: string,
     cron: string,
     message: string,
-    opts: { session_id?: string; tags?: string[] } = {}
+    opts: { session_id?: string; tags?: string[]; notify?: boolean } = {}
 ): ScheduledJob {
     const now = new Date().toISOString();
     return {
@@ -97,6 +98,7 @@ export function make_job(
         message,
         session_id:  opts.session_id ?? `scheduler:${name}`,
         enabled:     true,
+        notify:      opts.notify ?? false,
         created_at:  now,
         updated_at:  now,
         last_run_at: null,

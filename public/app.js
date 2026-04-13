@@ -1106,4 +1106,190 @@ document.addEventListener('DOMContentLoaded', async () => {
         const icons = { chatbot: '💬', skill_builder: '⚡', wiki_compiler: '📖', memory_extractor: '🧠' };
         return icons[role] || '🤖';
     }
+
+    // ══════════════════════════════════════════════════════
+    // 🗓  SCHEDULER DASHBOARD
+    // ══════════════════════════════════════════════════════
+
+    const scheduleList      = document.getElementById('scheduleList');
+    const scheduleCount     = document.getElementById('scheduleCount');
+    const scheduleNewBtn    = document.getElementById('scheduleNewBtn');
+    const schedCancelBtn    = document.getElementById('schedCancelBtn');
+    const scheduleRefreshBtn= document.getElementById('scheduleRefreshBtn');
+    const scheduleCreateCard= document.getElementById('scheduleCreateCard');
+    const scheduleForm      = document.getElementById('scheduleForm');
+    const schedRunResult    = document.getElementById('schedRunResult');
+
+    // Register view switch
+    const _origSwitchView = switchView;
+    // Patch switchView to load scheduler when needed
+    document.querySelectorAll('.nav-menu a').forEach(link => {
+        if (link.getAttribute('data-view') === 'schedule') {
+            link.addEventListener('click', () => loadScheduler());
+        }
+    });
+
+    scheduleNewBtn?.addEventListener('click', () => {
+        const visible = scheduleCreateCard.style.display !== 'none';
+        scheduleCreateCard.style.display = visible ? 'none' : 'block';
+        if (!visible) document.getElementById('sched-name')?.focus();
+    });
+
+    schedCancelBtn?.addEventListener('click', () => {
+        scheduleCreateCard.style.display = 'none';
+        scheduleForm.reset();
+        document.getElementById('schedFormStatus').textContent = '';
+    });
+
+    scheduleRefreshBtn?.addEventListener('click', loadScheduler);
+
+    scheduleForm?.addEventListener('submit', async e => {
+        e.preventDefault();
+        const status = document.getElementById('schedFormStatus');
+        const name    = document.getElementById('sched-name').value.trim();
+        const cron    = document.getElementById('sched-cron').value.trim();
+        const message = document.getElementById('sched-message').value.trim();
+        const notify  = document.getElementById('sched-notify').checked;
+        if (!name || !cron || !message) { status.textContent = '⚠ All fields are required.'; return; }
+        status.textContent = 'Creating…';
+        document.getElementById('schedSaveBtn').disabled = true;
+        try {
+            const res = await fetch('/api/schedule', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, cron, message, notify })
+            });
+            const data = await res.json();
+            if (!data.ok) { status.textContent = `❌ ${data.error}`; return; }
+            status.textContent = '✅ Job created!';
+            scheduleForm.reset();
+            setTimeout(() => {
+                scheduleCreateCard.style.display = 'none';
+                status.textContent = '';
+            }, 1200);
+            loadScheduler();
+        } catch (err) {
+            status.textContent = `❌ ${err.message}`;
+        } finally {
+            document.getElementById('schedSaveBtn').disabled = false;
+        }
+    });
+
+    async function loadScheduler() {
+        try {
+            const res  = await fetch('/api/schedule');
+            const jobs = await res.json();
+            scheduleCount.textContent = jobs.length;
+            if (!jobs.length) {
+                scheduleList.innerHTML = '<div class="empty-state">No scheduled jobs yet. Click <strong>+ New Job</strong> to create one.</div>';
+                return;
+            }
+            scheduleList.innerHTML = jobs.map(renderJobCard).join('');
+            // Bind action buttons
+            jobs.forEach(job => {
+                document.getElementById(`run-${job.name}`)?.addEventListener('click',    () => runJobNow(job.name));
+                document.getElementById(`pause-${job.name}`)?.addEventListener('click',  () => pauseJob(job.name));
+                document.getElementById(`resume-${job.name}`)?.addEventListener('click', () => resumeJob(job.name));
+                document.getElementById(`del-${job.name}`)?.addEventListener('click',    () => deleteJob(job.name));
+            });
+        } catch (err) {
+            scheduleList.innerHTML = `<div class="empty-state">Failed to load jobs: ${err.message}</div>`;
+        }
+    }
+
+    function renderJobCard(job) {
+        const isActive  = job.enabled;
+        const isError   = job.last_status === 'error';
+        const dotClass  = isError ? 'error' : isActive ? 'active' : 'paused';
+        const cardClass = isError ? 'job-error' : !isActive ? 'job-paused' : '';
+
+        const tags = (job.tags || []).map(t => `<span class="job-tag">${t}</span>`).join('');
+        const notifyBadge = job.notify ? '<span class="job-notify-badge">🔔 notify</span>' : '';
+
+        const lastRunText = job.last_run_at
+            ? `<span class="job-meta-item job-last-${job.last_status}">
+                 ${job.last_status === 'ok' ? '✓' : '✗'} ${fmtTime(job.last_run_at)}
+               </span>`
+            : '<span class="job-meta-item job-last-never">Never run</span>';
+
+        const pauseBtn = isActive
+            ? `<button class="job-btn pause-btn" id="pause-${job.name}" title="Pause">⏸ Pause</button>`
+            : `<button class="job-btn resume-btn" id="resume-${job.name}" title="Resume">▶ Resume</button>`;
+
+        return `
+        <div class="job-card ${cardClass}">
+            <div class="job-card-top">
+                <div class="job-status-dot ${dotClass}"></div>
+                <div class="job-main">
+                    <div class="job-name-row">
+                        <span class="job-name">${job.name}</span>
+                        <span class="job-cron">${job.cron}</span>
+                        ${notifyBadge}
+                        ${tags}
+                    </div>
+                    <div class="job-message" title="${job.message}">${job.message}</div>
+                    <div class="job-meta">
+                        ${lastRunText}
+                        <span class="job-meta-item">🔁 ${job.run_count || 0} run${job.run_count !== 1 ? 's' : ''}</span>
+                        <span class="job-meta-item">📅 Created ${fmtTime(job.created_at)}</span>
+                    </div>
+                </div>
+                <div class="job-actions">
+                    <button class="job-btn run-btn" id="run-${job.name}" title="Run Now">▶ Run</button>
+                    ${pauseBtn}
+                    <button class="job-btn del-btn" id="del-${job.name}" title="Delete">🗑</button>
+                </div>
+            </div>
+        </div>`;
+    }
+
+    async function runJobNow(name) {
+        const btn = document.getElementById(`run-${name}`);
+        if (btn) { btn.textContent = '⏳'; btn.disabled = true; }
+        try {
+            const res  = await fetch(`/api/schedule/${name}/run`, { method: 'POST' });
+            const data = await res.json();
+            showRunResult(name, data.ok ? data.result : `❌ ${data.error}`, data.ok);
+            loadScheduler();
+        } catch (err) {
+            showRunResult(name, `❌ ${err.message}`, false);
+        } finally {
+            if (btn) { btn.textContent = '▶ Run'; btn.disabled = false; }
+        }
+    }
+
+    async function pauseJob(name) {
+        await fetch(`/api/schedule/${name}/pause`, { method: 'POST' });
+        loadScheduler();
+    }
+
+    async function resumeJob(name) {
+        await fetch(`/api/schedule/${name}/resume`, { method: 'POST' });
+        loadScheduler();
+    }
+
+    async function deleteJob(name) {
+        if (!confirm(`Delete job "${name}"? This cannot be undone.`)) return;
+        await fetch(`/api/schedule/${name}`, { method: 'DELETE' });
+        loadScheduler();
+    }
+
+    function showRunResult(jobName, text, ok) {
+        schedRunResult.style.display = 'block';
+        schedRunResult.innerHTML = `
+            <span class="sched-run-result-close" id="schedRunClose">✕</span>
+            <div class="sched-run-result-header">${ok ? '✅' : '❌'} Run result — ${jobName}</div>
+            <div class="sched-run-result-body">${text || '(no output)'}</div>`;
+        document.getElementById('schedRunClose')?.addEventListener('click', () => {
+            schedRunResult.style.display = 'none';
+        });
+        // Auto-dismiss after 15 seconds
+        setTimeout(() => { schedRunResult.style.display = 'none'; }, 15000);
+    }
+
+    // Also hook into the existing switchView so scheduler loads on nav click
+    const _patchedNav = document.getElementById('nav-schedule');
+    if (_patchedNav) {
+        _patchedNav.addEventListener('click', () => setTimeout(loadScheduler, 0));
+    }
 });

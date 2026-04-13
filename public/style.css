@@ -771,3 +771,147 @@ body {
 }
 .result-bubble .interim-label { color: #6ee7b7; font-size: 12px; }
 .result-bubble .interim-detail { color: #64748b; }
+
+/* ══════════════════════════════════════════════════════
+   🗓  SCHEDULER DASHBOARD
+   ══════════════════════════════════════════════════════ */
+
+.schedule-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.schedule-header-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; padding-top: 4px; }
+.btn-sm { padding: 7px 14px; font-size: 13px; border-radius: 8px; }
+
+/* ── Create form ── */
+.schedule-form { display: flex; flex-direction: column; gap: 12px; margin-top: 8px; }
+.sched-row { display: flex; gap: 12px; }
+.sched-row .sched-field { flex: 1; }
+.sched-field { display: flex; flex-direction: column; gap: 5px; }
+.sched-field label { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+.sched-field input, .sched-field textarea {
+    background: rgba(0,0,0,0.25);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    padding: 8px 12px;
+    transition: border-color 0.2s;
+    resize: vertical;
+}
+.sched-field input:focus, .sched-field textarea:focus {
+    outline: none;
+    border-color: var(--primary);
+}
+.sched-bottom-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.sched-toggle-label { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; color: var(--text-muted); }
+.sched-toggle-label input[type=checkbox] { accent-color: var(--primary); width: 15px; height: 15px; cursor: pointer; }
+.sched-toggle-text { user-select: none; }
+.sched-form-actions { display: flex; gap: 8px; align-items: center; }
+.btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--text-muted); padding: 7px 14px; border-radius: 8px; font-size: 13px; cursor: pointer; transition: all 0.2s; }
+.btn-ghost:hover { border-color: rgba(255,255,255,0.2); color: var(--text); }
+
+/* ── Job list ── */
+.schedule-list { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
+
+.job-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+    transition: border-color 0.2s;
+}
+.job-card:hover { border-color: rgba(255,255,255,0.14); }
+.job-card.job-paused { opacity: 0.6; }
+.job-card.job-error { border-color: rgba(239,68,68,0.3); }
+
+.job-card-top { display: flex; align-items: flex-start; gap: 12px; }
+.job-status-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
+.job-status-dot.active  { background: var(--success); box-shadow: 0 0 6px var(--success); }
+.job-status-dot.paused  { background: var(--warning); box-shadow: 0 0 6px var(--warning); }
+.job-status-dot.error   { background: var(--danger);  box-shadow: 0 0 6px var(--danger); }
+.job-status-dot.never   { background: var(--text-muted); }
+
+.job-main { flex: 1; min-width: 0; }
+.job-name-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
+.job-name { font-weight: 600; font-size: 14px; font-family: 'Outfit', sans-serif; }
+.job-cron {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--primary);
+    background: rgba(59,130,246,0.1);
+    border: 1px solid rgba(59,130,246,0.2);
+    padding: 2px 7px;
+    border-radius: 6px;
+}
+.job-notify-badge {
+    font-size: 11px;
+    background: rgba(16,185,129,0.12);
+    color: #6ee7b7;
+    border: 1px solid rgba(16,185,129,0.25);
+    padding: 2px 7px;
+    border-radius: 6px;
+}
+.job-tag {
+    font-size: 10px;
+    background: rgba(139,92,246,0.12);
+    color: #c4b5fd;
+    border: 1px solid rgba(139,92,246,0.2);
+    padding: 2px 6px;
+    border-radius: 5px;
+}
+
+.job-message {
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.5;
+    margin-bottom: 8px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.job-meta { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 11px; color: var(--text-muted); }
+.job-meta-item { display: flex; align-items: center; gap: 4px; }
+.job-last-ok   { color: var(--success); }
+.job-last-err  { color: var(--danger); }
+.job-last-never { color: var(--text-muted); }
+
+.job-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.job-btn {
+    padding: 5px 11px;
+    border-radius: 7px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-muted);
+    transition: all 0.18s;
+    white-space: nowrap;
+}
+.job-btn:hover { color: var(--text); border-color: rgba(255,255,255,0.2); background: rgba(255,255,255,0.04); }
+.job-btn.run-btn:hover  { color: #6ee7b7; border-color: rgba(16,185,129,0.4); background: rgba(16,185,129,0.08); }
+.job-btn.del-btn:hover  { color: #fca5a5; border-color: rgba(239,68,68,0.4); background: rgba(239,68,68,0.08); }
+.job-btn.pause-btn:hover   { color: #fde68a; border-color: rgba(245,158,11,0.4); background: rgba(245,158,11,0.08); }
+.job-btn.resume-btn:hover  { color: #6ee7b7; border-color: rgba(16,185,129,0.4); background: rgba(16,185,129,0.08); }
+
+/* Run result toast */
+.sched-run-result {
+    position: fixed;
+    bottom: 28px;
+    right: 28px;
+    max-width: 480px;
+    background: rgba(15, 23, 42, 0.95);
+    border: 1px solid var(--primary);
+    border-radius: 12px;
+    padding: 14px 16px;
+    font-size: 13px;
+    line-height: 1.55;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    z-index: 9999;
+    animation: slideUp 0.25s ease;
+}
+.sched-run-result-header { font-weight: 600; color: var(--primary); margin-bottom: 6px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+.sched-run-result-body { color: var(--text-muted); white-space: pre-wrap; word-break: break-word; max-height: 160px; overflow-y: auto; }
+.sched-run-result-close { float: right; cursor: pointer; color: var(--text-muted); font-size: 16px; line-height: 1; margin-left: 8px; }
+.sched-run-result-close:hover { color: var(--text); }
+@keyframes slideUp { from { transform: translateY(16px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
