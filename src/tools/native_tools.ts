@@ -666,10 +666,17 @@ print(json.dumps({"ok": True, "frames": frames_b64, "total_frames": total, "fps"
 
                 console.log(`[webcam] Spawning: ${WINDOWS_PYTHON} ${cmdArgs.join(' ')}`);
 
+                // Compute the canonical snapshots directory and pass it explicitly
+                // so webcam_capture.py saves to the SAME folder the HTTP server serves.
+                const snapshotsDir = path.resolve(
+                    process.env.AAOS_SNAPSHOTS_DIR || path.join(os.tmpdir(), 'aaos_snapshots')
+                );
+                fs.mkdirSync(snapshotsDir, { recursive: true });
+
                 child_process.execFile(
                     WINDOWS_PYTHON,
                     cmdArgs,
-                    { timeout: 30000, encoding: 'utf8' },
+                    { timeout: 30000, encoding: 'utf8', env: { ...process.env, AAOS_SNAPSHOTS_DIR: snapshotsDir } },
                     (err, stdout, stderr) => {
                         const raw = (stdout || '').trim();
                         if (!raw && err) {
