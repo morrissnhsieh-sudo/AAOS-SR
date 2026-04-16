@@ -1,0 +1,11 @@
+version: "1.0.0"
+tools:
+  - name: init_skill
+    description: "Initializes a new AgentSkill directory with a template SKILL.md and optional resource directories (scripts, references, assets) and example files. This ensures the skill creation process is efficient and reliable, adhering to the required directory structure and file naming conventions."
+    entrypoint: "./index.js"
+  - name: package_skill
+    description: "Packages an AgentSkill into a distributable .skill file. It validates the skill to ensure it meets all requirements (YAML frontmatter format, skill naming conventions, description completeness, file organization, resource references) before packaging. If validation fails, it reports the errors and exits without creating a package."
+    entrypoint: "./index.js"
+  - name: validate_skill_name
+    description: "Validates a skill name to ensure it adheres to the required naming conventions: lowercase letters, digits, and hyphens only; length under 64 characters."
+    entrypoint: "./index.js"

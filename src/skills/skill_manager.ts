@@ -35,7 +35,16 @@ function getWorkspace(): string {
 }
 
 export function io_read_skill_md(skillMdPath: string): string | null {
-    try { return fs.readFileSync(skillMdPath, 'utf8'); } catch { return null; }
+    try {
+        // Support relative paths (resolved against workspace)
+        const resolved = path.isAbsolute(skillMdPath)
+            ? skillMdPath
+            : path.join(getWorkspace(), skillMdPath);
+        let content = fs.readFileSync(resolved, 'utf8');
+        // Replace {WORKSPACE} placeholder with the actual workspace path
+        content = content.replace(/\{WORKSPACE\}/g, getWorkspace());
+        return content;
+    } catch { return null; }
 }
 
 export function parse_skill_md(raw: string): SkillContent | null {

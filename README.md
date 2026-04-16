@@ -84,10 +84,10 @@ Connect via WebSocket at **ws://localhost:3000/ws/chat**.
 ```
 
 **Key design principles:**
-- **Skills extend the agent** — drop a `SKILL.md` file into `~/.aaos/skills/<name>/` to give the agent new capabilities
+- **Skills extend the agent** — drop a `SKILL.md` file into `workspace/skills/<name>/` to give the agent new capabilities; skills are versioned with the code
 - **Provider-agnostic LLM** — swap between Anthropic, Google Gemini, Claude-on-Vertex, or Ollama by changing one env var
 - **Cross-platform** — runs identically on Windows, Linux, and macOS; OS is detected at startup and the correct shell/Python is selected automatically
-- **No cloud lock-in** — all data lives in `~/.aaos/` on your machine
+- **Configurable workspace** — skills and scripts live in `workspace/` by default; override with `AAOS_WORKSPACE` in `.env` to point anywhere
 
 ---
 
@@ -126,8 +126,8 @@ GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
 AAOS_LLM_PROVIDER=anthropic
 ANTHROPIC_API_KEY=sk-ant-api03-...
 
-# Workspace — use forward slashes or escaped backslashes
-AAOS_WORKSPACE=C:/Users/YourName/.aaos
+# Workspace — default is ./workspace inside the repo; override here if needed
+AAOS_WORKSPACE=C:\Users\YourName\Code\AAOS\workspace
 
 # Snapshots (webcam captures)
 AAOS_SNAPSHOTS_DIR=C:/Temp/aaos_snapshots
@@ -293,7 +293,7 @@ curl -X POST http://localhost:3000/api/model \
   -d '{"provider": "anthropic"}'
 ```
 
-Role overrides are persisted to `~/.aaos/model_config.json` and survive server restarts.
+Role overrides are persisted to `workspace/model_config.json` and survive server restarts.
 
 ---
 
@@ -309,7 +309,7 @@ These tools are always available to the agent regardless of installed skills.
 | `file_search` | Regex search across file contents in a directory. |
 | `sys_info` | Get OS, platform, shell, Python executable, home directory, and snapshots path. |
 | `think` | Internal reasoning step — lets the agent think out loud without side effects. |
-| `remember` | Persist a fact to long-term memory at `~/.aaos/memory/MEMORY.md`. |
+| `remember` | Persist a fact to long-term memory at `workspace/memory/MEMORY.md`. |
 | `web_fetch` | Fetch any URL. **Automatically parses RSS/Atom feeds** into clean structured items. Strips HTML to readable text. Never use `bash_exec+curl` for URLs — always use this. |
 | `bash_exec` | Run shell commands. Uses bash on Linux/macOS, auto-selects bash or cmd.exe on Windows. |
 | `analyze_image` | Vision analysis of local images (PNG/JPG/WebP) via Google Gemini Vision. |
@@ -341,18 +341,35 @@ Skills are Markdown files (`SKILL.md`) that extend the agent with domain-specifi
 
 ### Storage
 
+Skills live in the workspace `skills/` directory, versioned with the source code:
+
 ```
-~/.aaos/skills/
+workspace/skills/
+├── gmail/
+│   └── SKILL.md          # Gmail via browser session or IMAP
+├── outlook/
+│   └── SKILL.md          # Outlook via IMAP
 ├── browser/
 │   └── SKILL.md          # Browser automation via Playwright
-├── scheduler/
-│   └── SKILL.md          # Scheduling instructions & examples
-├── email/
-│   └── SKILL.md
 ├── github/
 │   └── SKILL.md
-└── registry.json         # Tracks enabled/disabled status
+└── registry.json         # Tracks enabled/disabled status (relative paths)
 ```
+
+The workspace location is set by `AAOS_WORKSPACE` in `.env`. Default: `./workspace` (inside the repo). Override to use a shared team workspace or a personal one:
+
+```env
+# Default — versioned alongside the code
+AAOS_WORKSPACE=C:\Users\YourName\Code\AAOS\workspace
+
+# Personal override — your own workspace outside the repo
+AAOS_WORKSPACE=C:\Users\YourName\.aaos
+
+# Shared team workspace on a network drive
+AAOS_WORKSPACE=\\server\shared\aaos-workspace
+```
+
+Skill SKILL.md files may use `{WORKSPACE}` as a placeholder — it is automatically resolved to the active workspace path at load time.
 
 ### SKILL.md Format
 
@@ -432,16 +449,16 @@ TZ=America/New_York    # EST/EDT
 
 ### Job Persistence
 
-Jobs are stored at `~/.aaos/scheduler/jobs.json` and automatically re-activated when the server starts.
+Jobs are stored at `workspace/scheduler/jobs.json` and automatically re-activated when the server starts.
 
 ---
 
 ## Wiki — Knowledge Base
 
-The wiki is a three-layer Karpathy-style compiled knowledge base stored at `~/.aaos/wiki/`.
+The wiki is a three-layer Karpathy-style compiled knowledge base stored at `workspace/wiki/`.
 
 ```
-~/.aaos/wiki/
+workspace/wiki/
 ├── sources/      # Raw ingested content (snapshots of URLs, PDFs, pastes)
 ├── pages/        # LLM-compiled structured Markdown pages
 └── SCHEMA.md     # Rules and templates the wiki_compiler follows
@@ -483,7 +500,7 @@ curl "http://localhost:3000/api/wiki/pages/ISO-26262"
 
 ## Memory System
 
-Long-term facts are stored as a Markdown list at `~/.aaos/memory/MEMORY.md`. The agent loads this file at the start of every session.
+Long-term facts are stored as a Markdown list at `workspace/memory/MEMORY.md`. The agent loads this file at the start of every session.
 
 ```bash
 # Add a fact
@@ -500,7 +517,7 @@ curl -X DELETE http://localhost:3000/api/memory \
   -d '{"fact": "The production database is at db.internal:5432"}'
 ```
 
-Session conversation logs are stored at `~/.aaos/sessions/{sessionId}.jsonl` (one JSON message per line).
+Session conversation logs are stored at `workspace/sessions/{sessionId}.jsonl` (one JSON message per line).
 
 ---
 
@@ -527,7 +544,7 @@ AAOS can scan your local network, subscribe to MQTT brokers, and send TCP comman
 "Publish {temperature: 22.5} to sensors/room1/temp"
 ```
 
-Device registry is stored at `~/.aaos/iot/devices.json`.
+Device registry is stored at `workspace/iot/devices.json`.
 
 ---
 
@@ -657,23 +674,20 @@ AAOS/
 │   └── acp/
 │       └── acp_runtime.ts        # Agent Control Protocol pipeline
 │
-├── ~/.aaos/                      # Runtime data (created on first start)
-│   ├── skills/                   # Installed SKILL.md files
-│   ├── memory/
-│   │   └── MEMORY.md             # Long-term facts
-│   ├── sessions/
-│   │   └── *.jsonl               # Session conversation logs
-│   ├── wiki/
-│   │   ├── sources/              # Raw ingested content
-│   │   ├── pages/                # Compiled wiki pages
-│   │   └── SCHEMA.md             # Wiki compilation rules
-│   ├── iot/
-│   │   └── devices.json          # Scanned device registry
-│   ├── scheduler/
-│   │   └── jobs.json             # Scheduled job definitions
-│   ├── usage/
-│   │   └── usage.jsonl           # Token usage records
-│   └── model_config.json         # Per-role model overrides
+├── workspace/                    # Default workspace (set AAOS_WORKSPACE to override)
+│   ├── skills/                   # ✅ VERSIONED — SKILL.md files & registry.json
+│   │   ├── gmail/SKILL.md
+│   │   ├── outlook/SKILL.md
+│   │   └── registry.json         # Relative paths — works for any user
+│   ├── scripts/                  # ✅ VERSIONED — Python helper scripts
+│   │   ├── gmail_imap.py
+│   │   └── outlook_imap.py
+│   ├── BOOT.md                   # ✅ VERSIONED — Agent boot instructions
+│   ├── memory/                   # 🔒 gitignored — runtime facts
+│   ├── sessions/                 # 🔒 gitignored — conversation logs
+│   ├── uploads/                  # 🔒 gitignored — user-uploaded files
+│   ├── playwright_profile/       # 🔒 gitignored — browser login sessions
+│   └── credentials.yaml          # 🔒 gitignored — saved credentials
 │
 ├── .env                          # Environment configuration (create this)
 ├── package.json

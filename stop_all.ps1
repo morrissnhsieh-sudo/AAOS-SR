@@ -10,6 +10,7 @@ $targetSignatures = @(
     "AAOS Gateway",
     "AAOS Remote Node",
     "src/index.ts",
+    "dist/index.js",
     "node_agent_cli.ts"
 )
 

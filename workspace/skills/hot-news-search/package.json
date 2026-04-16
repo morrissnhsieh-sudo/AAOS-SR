@@ -1,0 +1,6 @@
+{
+  "name": "hot-news-search",
+  "version": "1.0.0",
+  "description": "Search the top news headlines from a news API.",
+  "main": "index.js"
+}

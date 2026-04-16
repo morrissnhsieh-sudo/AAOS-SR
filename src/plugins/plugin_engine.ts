@@ -10,9 +10,18 @@ import * as path from 'path';
 export interface Plugin { name: string; enabled: boolean; init: () => Promise<void>; invoke?: (prompt: LlmPrompt) => Promise<LlmResponse>; }
 export interface PluginConfig { [key: string]: string; }
 export interface GatewayConfig { plugins?: { entries?: { [key: string]: PluginConfig } }; }
-export interface LlmUsage { input_tokens: number; output_tokens: number; total_tokens: number; }
-export interface LlmResponse { text?: string; tools?: ToolCall[]; usage?: LlmUsage; }
-export interface LlmPrompt { system: string; messages: any[]; tools?: ToolDefinition[]; }
+export interface LlmUsage { input_tokens: number; output_tokens: number; total_tokens: number; thinking_tokens?: number; }
+export interface LlmResponse { text?: string; reasoning?: string; tools?: ToolCall[]; usage?: LlmUsage; }
+export interface LlmPrompt {
+    system: string;
+    messages: any[];
+    tools?: ToolDefinition[];
+    /** Enable native model thinking/reasoning mode.
+     *  Set to a token budget (e.g. 8000–32000). The model will reason internally
+     *  before producing its answer. Requires a thinking-capable model
+     *  (gemini-2.5-pro, gemini-2.5-flash, claude-3-7-sonnet-20250219). */
+    thinking_budget?: number;
+}
 
 export const SUPPORTED_PLUGINS: readonly string[] = ['anthropic', 'anthropic-vertex', 'ollama', 'google', 'browser'];
 export const PLUGIN_CONFIG_PREFIX: string = 'plugins.entries';
@@ -24,7 +33,7 @@ export const pluginRegistry = new Map<string, Plugin>();
 export interface ModelAssignment { provider: string; model: string; }
 export type RoleModelConfig = Record<string, ModelAssignment>;
 
-export const AGENT_ROLES = ['chatbot', 'skill_builder', 'memory_extractor', 'wiki_compiler'] as const;
+export const AGENT_ROLES = ['chatbot', 'skill_builder', 'memory_extractor', 'wiki_compiler', 'thinker'] as const;
 export type AgentRole = typeof AGENT_ROLES[number];
 
 export const ROLE_LABELS: Record<string, string> = {
@@ -32,22 +41,27 @@ export const ROLE_LABELS: Record<string, string> = {
     skill_builder:    'Skill Builder',
     memory_extractor: 'Memory Extractor',
     wiki_compiler:    'Wiki Compiler',
+    thinker:          'Deep Thinker',
 };
 
-export const AVAILABLE_MODELS: Record<string, Array<{ id: string; label: string }>> = {
+export const AVAILABLE_MODELS: Record<string, Array<{ id: string; label: string; thinking?: boolean }>> = {
     'google': [
+        { id: 'gemini-2.5-pro',        label: 'Gemini 2.5 Pro (deep thinking ✨)',   thinking: true },
+        { id: 'gemini-2.5-flash',      label: 'Gemini 2.5 Flash (thinking, fast ✨)', thinking: true },
         { id: 'gemini-2.0-flash',      label: 'Gemini 2.0 Flash (fast)' },
         { id: 'gemini-2.0-flash-lite', label: 'Gemini 2.0 Flash Lite (lightweight)' },
         { id: 'gemini-1.5-flash',      label: 'Gemini 1.5 Flash (stable)' },
         { id: 'gemini-1.5-pro',        label: 'Gemini 1.5 Pro (powerful)' },
     ],
     'anthropic': [
-        { id: 'claude-haiku-4-5',  label: 'Claude Haiku (fast)' },
-        { id: 'claude-sonnet-4-6', label: 'Claude Sonnet (balanced)' },
+        { id: 'claude-3-7-sonnet-20250219', label: 'Claude 3.7 Sonnet (extended thinking ✨)', thinking: true },
+        { id: 'claude-haiku-4-5',           label: 'Claude Haiku (fast)' },
+        { id: 'claude-sonnet-4-6',          label: 'Claude Sonnet (balanced)' },
     ],
     'anthropic-vertex': [
-        { id: 'claude-haiku-4-5',  label: 'Claude Haiku on Vertex (fast)' },
-        { id: 'claude-sonnet-4-5', label: 'Claude Sonnet on Vertex (balanced)' },
+        { id: 'claude-3-7-sonnet@20250219', label: 'Claude 3.7 Sonnet on Vertex (thinking ✨)', thinking: true },
+        { id: 'claude-haiku-4-5',           label: 'Claude Haiku on Vertex (fast)' },
+        { id: 'claude-sonnet-4-5',          label: 'Claude Sonnet on Vertex (balanced)' },
     ],
 };
 
@@ -249,10 +263,18 @@ async function invoke_google(prompt: LlmPrompt, model: string): Promise<LlmRespo
 
     const contents = convert_messages_to_google(prompt.messages);
 
+    // Build config — add thinkingConfig when a budget is requested.
+    // Supported on gemini-2.5-pro and gemini-2.5-flash.
+    const genConfig: Record<string, any> = { systemInstruction: prompt.system, tools };
+    if (prompt.thinking_budget && prompt.thinking_budget > 0) {
+        genConfig.thinkingConfig = { thinkingBudget: prompt.thinking_budget };
+        console.log(`[invoke_google] Thinking mode ON — budget=${prompt.thinking_budget} tokens`);
+    }
+
     const response = await ai.models.generateContent({
         model,
         contents,
-        config: { systemInstruction: prompt.system, tools }
+        config: genConfig,
     });
 
     const result: LlmResponse = { text: response.text ?? '' };
@@ -263,9 +285,11 @@ async function invoke_google(prompt: LlmPrompt, model: string): Promise<LlmRespo
     // Capture token usage from Gemini usageMetadata
     const meta = (response as any).usageMetadata;
     if (meta) {
-        const input_tokens  = meta.promptTokenCount     ?? 0;
-        const output_tokens = meta.candidatesTokenCount ?? 0;
-        result.usage = { input_tokens, output_tokens, total_tokens: input_tokens + output_tokens };
+        const input_tokens     = meta.promptTokenCount     ?? 0;
+        const output_tokens    = meta.candidatesTokenCount ?? 0;
+        const thinking_tokens  = meta.thoughtsTokenCount   ?? 0;
+        result.usage = { input_tokens, output_tokens, total_tokens: input_tokens + output_tokens, thinking_tokens };
+        if (thinking_tokens > 0) console.log(`[invoke_google] Thinking tokens used: ${thinking_tokens}`);
     }
     return result;
 }
@@ -282,28 +306,45 @@ async function invoke_anthropic(prompt: LlmPrompt, model: string): Promise<LlmRe
         : undefined;
 
     const messages = convert_messages_to_anthropic(prompt.messages);
+    const useThinking = (prompt.thinking_budget ?? 0) > 0;
+
+    if (useThinking) console.log(`[invoke_anthropic] Extended thinking ON — budget=${prompt.thinking_budget} tokens`);
+
+    // Extended thinking requires temperature=1 and max_tokens > budget_tokens.
+    const max_tokens = useThinking
+        ? Math.max(16000, (prompt.thinking_budget ?? 0) + 4096)
+        : 8096;
 
     const response = await client.messages.create({
         model,
-        max_tokens: 8096,
+        max_tokens,
         system: prompt.system,
         messages,
-        ...(tools ? { tools } : {})
-    });
+        ...(tools ? { tools } : {}),
+        ...(useThinking ? {
+            temperature: 1,              // required for extended thinking
+            thinking: { type: 'enabled' as const, budget_tokens: prompt.thinking_budget! },
+        } : {}),
+    } as any);  // 'as any' covers SDK versions where thinking field isn't typed yet
 
     const result: LlmResponse = {};
     const textParts: string[] = [];
+    const reasoningParts: string[] = [];
     const toolCalls: ToolCall[] = [];
     for (const block of response.content) {
-        if (block.type === 'text') textParts.push(block.text);
+        if (block.type === 'text')          textParts.push(block.text);
+        else if (block.type === 'thinking') reasoningParts.push((block as any).thinking ?? '');
         else if (block.type === 'tool_use') toolCalls.push({ id: block.id, name: block.name, args: block.input as Record<string, any> });
     }
-    if (textParts.length) result.text = textParts.join('\n');
-    if (toolCalls.length) result.tools = toolCalls;
+    if (textParts.length)      result.text      = textParts.join('\n');
+    if (reasoningParts.length) result.reasoning = reasoningParts.join('\n');
+    if (toolCalls.length)      result.tools     = toolCalls;
     if (response.usage) {
-        const input_tokens  = response.usage.input_tokens  ?? 0;
-        const output_tokens = response.usage.output_tokens ?? 0;
-        result.usage = { input_tokens, output_tokens, total_tokens: input_tokens + output_tokens };
+        const input_tokens     = response.usage.input_tokens  ?? 0;
+        const output_tokens    = response.usage.output_tokens ?? 0;
+        const thinking_tokens  = (response.usage as any).thinking_input_tokens ?? 0;
+        result.usage = { input_tokens, output_tokens, total_tokens: input_tokens + output_tokens, thinking_tokens };
+        if (thinking_tokens > 0) console.log(`[invoke_anthropic] Thinking tokens: ${thinking_tokens}`);
     }
     return result;
 }
@@ -324,28 +365,43 @@ async function invoke_anthropic_vertex(prompt: LlmPrompt, model: string): Promis
         : undefined;
 
     const messages = convert_messages_to_anthropic(prompt.messages);
+    const useThinking = (prompt.thinking_budget ?? 0) > 0;
+
+    if (useThinking) console.log(`[invoke_anthropic_vertex] Extended thinking ON — budget=${prompt.thinking_budget} tokens`);
+
+    const max_tokens = useThinking
+        ? Math.max(16000, (prompt.thinking_budget ?? 0) + 4096)
+        : 8096;
 
     const response = await client.messages.create({
         model,
-        max_tokens: 8096,
+        max_tokens,
         system: prompt.system,
         messages,
-        ...(tools ? { tools } : {})
-    });
+        ...(tools ? { tools } : {}),
+        ...(useThinking ? {
+            temperature: 1,
+            thinking: { type: 'enabled' as const, budget_tokens: prompt.thinking_budget! },
+        } : {}),
+    } as any);
 
     const result: LlmResponse = {};
     const textParts: string[] = [];
+    const reasoningParts: string[] = [];
     const toolCalls: ToolCall[] = [];
     for (const block of response.content) {
-        if (block.type === 'text') textParts.push(block.text);
+        if (block.type === 'text')          textParts.push(block.text);
+        else if (block.type === 'thinking') reasoningParts.push((block as any).thinking ?? '');
         else if (block.type === 'tool_use') toolCalls.push({ id: block.id, name: block.name, args: block.input as Record<string, any> });
     }
-    if (textParts.length) result.text = textParts.join('\n');
-    if (toolCalls.length) result.tools = toolCalls;
+    if (textParts.length)      result.text      = textParts.join('\n');
+    if (reasoningParts.length) result.reasoning = reasoningParts.join('\n');
+    if (toolCalls.length)      result.tools     = toolCalls;
     if (response.usage) {
-        const input_tokens  = response.usage.input_tokens  ?? 0;
-        const output_tokens = response.usage.output_tokens ?? 0;
-        result.usage = { input_tokens, output_tokens, total_tokens: input_tokens + output_tokens };
+        const input_tokens    = response.usage.input_tokens  ?? 0;
+        const output_tokens   = response.usage.output_tokens ?? 0;
+        const thinking_tokens = (response.usage as any).thinking_input_tokens ?? 0;
+        result.usage = { input_tokens, output_tokens, total_tokens: input_tokens + output_tokens, thinking_tokens };
     }
     return result;
 }

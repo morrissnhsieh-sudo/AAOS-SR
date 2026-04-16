@@ -16,6 +16,10 @@ import { register_iot_tools } from './tools/iot_tools';
 import { register_wiki_tools, list_wiki_pages, read_wiki_page, ensure_wiki_structure } from './tools/wiki_tools';
 import { start_scheduler_engine, stop_scheduler_engine, activate_job, deactivate_job, run_job_now } from './scheduler/scheduler_engine';
 import { register_scheduler_tools } from './scheduler/scheduler_tools';
+import { register_playwright_tools, shutdown_playwright } from './tools/playwright_mcp_bridge';
+import { register_deep_think_tool } from './tools/deep_think_tool';
+import { register_web_login_tool } from './tools/web_login_tool';
+import { register_browser_setup_tool } from './tools/browser_setup_tool';
 import { load_jobs, get_job, upsert_job, delete_job, update_job, make_job } from './scheduler/scheduler_store';
 import { detect_os_environment } from './scheduler/os_env';
 import { execute_tool } from './tools/tool_dispatcher';
@@ -436,16 +440,68 @@ wss.on('connection', (ws, req) => {
     io_accept_ws_connection(ws, req as any);
 });
 
-bind_mcp_to_loopback(3001);
+// Suppress WSS-forwarded port errors — handled by server.on('error') below
+wss.on('error', () => {});
 
-server.listen(3000, () => {
+// ── Pre-start: kill any processes already holding ports 3000 or 3001 ─────────
+function kill_port_conflicts(ports: number[]): void {
+    if (process.platform !== 'win32') return;
+    try {
+        const { execSync } = require('child_process');
+        const out: string = execSync('netstat -ano', { encoding: 'utf8', stdio: 'pipe' });
+        for (const line of out.split('\n')) {
+            for (const port of ports) {
+                if (line.includes(`:${port}`) && line.includes('LISTENING')) {
+                    const parts = line.trim().split(/\s+/);
+                    const pid = parts[parts.length - 1];
+                    if (pid && pid !== String(process.pid) && /^\d+$/.test(pid)) {
+                        try {
+                            execSync(`taskkill /PID ${pid} /T /F`, { stdio: 'pipe' });
+                            console.log(`[AAOS] Pre-start: killed conflicting PID ${pid} on port ${port}`);
+                        } catch { /* already gone */ }
+                    }
+                }
+            }
+        }
+    } catch { /* ignore */ }
+}
+
+// ── Startup sequence: kill conflicts → wait for OS to free ports → listen ────
+server.on('error', (err: any) => {
+    if (err.code !== 'EADDRINUSE') {
+        console.error('[AAOS] Server error:', err);
+        process.exit(1);
+    }
+    // Should not normally reach here since we pre-kill, but handle as last resort
+    console.warn('[AAOS] Port 3000 still in use after pre-kill — retrying in 3s...');
+    setTimeout(() => server.listen(3000, onListening), 3000);
+});
+
+async function start_server(): Promise<void> {
+    kill_port_conflicts([3000, 3001]);
+    // Wait for OS to fully release the ports after kill
+    await new Promise<void>(resolve => setTimeout(resolve, 800));
+    bind_mcp_to_loopback(3001);
+    server.listen(3000, onListening);
+}
+
+start_server();
+
+function onListening() {
     console.log('AAOS Gateway listening on port 3000');
     load_model_config(getWorkspace());
     register_native_tools();
-    console.log('Native tools registered: think, remember, web_fetch, file_read, file_write, file_list, file_search, bash_exec, build_skill, analyze_image, analyze_video, webcam_capture');
+    register_deep_think_tool();
+    register_web_login_tool();
+    register_browser_setup_tool();
+    console.log('Native tools registered: think, problem_solve, verify_solution, remember, credentials_read, web_login, browser_setup, web_fetch, file_read, file_write, file_list, file_search, bash_exec, build_skill, analyze_image, analyze_video, webcam_capture');
     register_iot_tools();
     register_wiki_tools();
     register_scheduler_tools();
+    // Playwright MCP — browser automation tools (browser_navigate, browser_click, …)
+    register_playwright_tools().catch((e: any) =>
+        console.warn('[playwright-mcp] Deferred registration failed:', e.message)
+    );
     start_scheduler_engine();
 
     // Pre-initialize the LLM plugin at startup so the heartbeat ping can verify it
@@ -473,12 +529,13 @@ server.listen(3000, () => {
     // Log OS environment detected for scheduled tasks
     const osEnv = detect_os_environment();
     console.log(`[OS] ${osEnv.description}`);
-});
+}
 
 // ── Graceful shutdown ─────────────────────────────────────────────────────────
 function graceful_shutdown(signal: string) {
     console.log(`\n[AAOS] Received ${signal} — shutting down gracefully...`);
     stop_scheduler_engine();
+    shutdown_playwright();
     server.close(() => {
         console.log('[AAOS] Server closed. Goodbye.');
         process.exit(0);

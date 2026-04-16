@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { register_tool } from './tool_dispatcher';
+import * as yaml from 'js-yaml';
 import { build_skill_from_description } from '../skills/skill_builder';
 import { append_validated_memory_fact } from '../memory/memory_system';
 import { GoogleGenAI } from '@google/genai';
@@ -896,6 +897,130 @@ print(json.dumps({"ok": True, "frames": frames_b64, "total_frames": total, "fps"
                 return { ok: false, error: err.message, url };
             }
         }
+    );
+
+    // ── Credentials (Windows Credential Manager via keyring) ─────────────────
+    //
+    // Credentials are stored encrypted in Windows Credential Manager (DPAPI),
+    // NOT in any plaintext file.  The Python keyring library handles the OS
+    // vault — on Windows it uses the native Windows Credential Manager, on
+    // macOS it uses the Keychain, and on Linux the Secret Service.
+    //
+    // Tools:
+    //   credentials_read   — retrieve stored credentials
+    //   credentials_save   — store/update credentials (one-time setup per service)
+    //   credentials_delete — remove stored credentials
+
+    const CRED_SCRIPT = path.join(
+        process.env.AAOS_WORKSPACE || path.join(process.env.USERPROFILE || process.env.HOME || '', '.aaos'),
+        'scripts', 'credential_manager.py'
+    );
+
+    function run_cred_script(args: string[]): Promise<any> {
+        return new Promise((resolve) => {
+            child_process.execFile(
+                WINDOWS_PYTHON,
+                [CRED_SCRIPT, ...args],
+                { timeout: 10_000, encoding: 'utf8' },
+                (err, stdout, stderr) => {
+                    const raw = (stdout || '').trim();
+                    if (!raw) {
+                        resolve({ error: (stderr || err?.message || 'No output').slice(0, 300) });
+                        return;
+                    }
+                    try { resolve(JSON.parse(raw)); }
+                    catch { resolve({ error: `Non-JSON output: ${raw.slice(0, 200)}` }); }
+                }
+            );
+        });
+    }
+
+    register_tool(
+        {
+            name: 'credentials_read',
+            description:
+                'Retrieve stored login credentials (email, username, password, token, API key, etc.) ' +
+                'for a named service from the Windows Credential Manager (encrypted by the OS). ' +
+                'ALWAYS call this BEFORE asking the user for any login detail. ' +
+                'If not found, call credentials_save to store them, then use them. ' +
+                'Never ask the user for a password if credentials_read succeeds.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    service: {
+                        type: 'string',
+                        description: 'Service name (e.g. "gmail", "outlook", "github"). Case-insensitive.'
+                    }
+                },
+                required: ['service']
+            }
+        },
+        async (args: { service: string }) => {
+            const result = await run_cred_script(['get', '--service', args.service]);
+            if (result.found) {
+                const keys = Object.keys(result).filter(k => k !== 'found' && k !== 'service');
+                console.log(`[credentials] Loaded ${keys.join(', ')} for "${args.service}" from Credential Manager`);
+                // Mask sensitive fields — the LLM must NEVER see raw passwords.
+                // Use web_login(service=...) to authenticate; credentials_read only confirms existence.
+                const SENSITIVE = new Set(['password', 'passwd', 'secret', 'token', 'api_key', 'apikey', 'key', 'pin', 'otp']);
+                const masked: Record<string, any> = { found: true, service: result.service };
+                for (const k of keys) {
+                    masked[k] = SENSITIVE.has(k.toLowerCase()) ? '***' : result[k];
+                }
+                masked._note = 'Sensitive fields masked. Call web_login(service="' + args.service + '") to authenticate automatically.';
+                return masked;
+            }
+            return result;
+        }
+    );
+
+    register_tool(
+        {
+            name: 'credentials_save',
+            description:
+                'Store or update login credentials for a service in Windows Credential Manager (encrypted). ' +
+                'Use when the user provides credentials for the first time, or when updating after a password change. ' +
+                'After saving, use credentials_read to confirm they were stored correctly. ' +
+                'The credentials are encrypted by Windows — never stored in any plaintext file.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    service: {
+                        type: 'string',
+                        description: 'Service name (e.g. "gmail", "outlook365", "github"). Case-insensitive.'
+                    },
+                    fields: {
+                        type: 'object',
+                        description: 'Key-value pairs to store (e.g. {"email": "user@gmail.com", "password": "secret"}). ' +
+                                     'Use field names: email, username, password, token, url, or any custom name.'
+                    }
+                },
+                required: ['service', 'fields']
+            }
+        },
+        async (args: { service: string; fields: Record<string, string> }) => {
+            const fieldsJson = JSON.stringify(args.fields);
+            const result = await run_cred_script(['set', '--service', args.service, '--fields', fieldsJson]);
+            if (result.ok) {
+                console.log(`[credentials] Saved ${result.stored_fields?.join(', ')} for "${args.service}" to Credential Manager`);
+            }
+            return result;
+        }
+    );
+
+    register_tool(
+        {
+            name: 'credentials_delete',
+            description: 'Remove stored credentials for a service from Windows Credential Manager.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    service: { type: 'string', description: 'Service name to delete.' }
+                },
+                required: ['service']
+            }
+        },
+        async (args: { service: string }) => run_cred_script(['delete', '--service', args.service])
     );
 
     // ── Shell execution ───────────────────────────────────────────────────────

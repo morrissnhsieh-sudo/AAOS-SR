@@ -1,0 +1,5 @@
+version: "1.0.0"
+tools:
+  - name: get_weather
+    description: "Retrieves current weather data from a weather API."
+    entrypoint: "./index.js"

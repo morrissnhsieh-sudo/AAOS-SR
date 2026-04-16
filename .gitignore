@@ -4,3 +4,23 @@ dist
 .aaos
 .openclaw
 *.log
+
+# ── Workspace runtime data (user-specific, never commit) ─────────────────────
+workspace/credentials.yaml
+workspace/credentials.json
+workspace/memory.db
+workspace/HEARTBEAT.md
+workspace/model_config.json
+workspace/memory/
+workspace/sessions/
+workspace/agents/
+workspace/uploads/
+workspace/usage/
+workspace/wiki/
+workspace/playwright_profile/
+workspace/skills/__pycache__/
+workspace/scripts/__pycache__/
+
+# ── Temp / build artifacts ────────────────────────────────────────────────────
+*.pma
+*.pyc

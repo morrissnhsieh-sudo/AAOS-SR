@@ -1,0 +1,342 @@
+[
+  {
+    "id": "5c51cd10-f2bf-4f1a-a58b-a0b326912289",
+    "name": "skill-creator",
+    "version": "1.0.0",
+    "status": "enabled",
+    "description": "Create, edit, improve, or audit AgentSkills. Use when creating a new skill from scratch or when asked to improve, review, audit, tidy up, or clean up an existing skill or SKILL.md file. Also use when editing or restructuring a skill directory (moving files to references/ or scripts/, removing stale content, validating against the AgentSkills spec). Triggers on phrases like \"create a skill\", \"author a skill\", \"tidy up a skill\", \"improve this skill\", \"review the skill\", \"clean up the skill\", \"audit the skill\".",
+    "skill_md_path": "skills/skill-creator/SKILL.md"
+  },
+  {
+    "id": "6e383cc2-975e-48c2-a6f0-96d9b12dd377",
+    "name": "summarize",
+    "version": "1.0.0",
+    "status": "enabled",
+    "description": "Summarize or extract text/transcripts from URLs, podcasts, and local files (great fallback for ?�transcribe this YouTube/video??.",
+    "skill_md_path": "skills/summarize/SKILL.md"
+  },
+  {
+    "id": "84f3e65d-b223-441f-8b36-1c879dfe42db",
+    "name": "xurl",
+    "version": "1.0.0",
+    "status": "enabled",
+    "description": "A CLI tool for making authenticated requests to the X (Twitter) API. Use this skill when you need to post tweets, reply, quote, search, read posts, manage followers, send DMs, upload media, or interact with any X API v2 endpoint.",
+    "skill_md_path": "skills/xurl/SKILL.md"
+  },
+  {
+    "id": "e6076947-bc3f-4a64-824c-4554a556cb0a",
+    "name": "voice-call",
+    "version": "1.0.0",
+    "status": "enabled",
+    "description": "Start voice calls via the OpenClaw voice-call plugin.",
+    "skill_md_path": "skills/voice-call/SKILL.md"
+  },
+  {
+    "id": "b8e7012c-abe6-478a-94ee-2eb9cfa60cbc",
+    "name": "wacli",
+    "version": "1.0.0",
+    "status": "enabled",
+    "description": "Send WhatsApp messages to other people or search/sync WhatsApp history via the wacli CLI (not for normal user chats).",
+    "skill_md_path": "skills/wacli/SKILL.md"
+  },
+  {
+    "id": "f71a93a6-a3be-43d8-a8e4-64d436421eb8",
+    "name": "video-frames",
+    "version": "1.0.0",
+    "status": "enabled",
+    "description": "Extract frames or short clips from videos using ffmpeg.",
+    "skill_md_path": "skills/video-frames/SKILL.md"
+  },
+  {
+    "id": "2e1469d9-7e50-438a-a256-6b28f94f72f9",
+    "name": "tmux",
+    "version": "1.0.0",
+    "status": "enabled",
+    "description": "Remote-control tmux sessions for interactive CLIs by sending keystrokes and scraping pane output.",
+    "skill_md_path": "skills/tmux/SKILL.md"
+  },
+  {
+    "id": "8740d230-d80f-4be5-a2d5-eee76d4bc075",
+    "name": "taskflow-inbox-triage",
+    "version": "1.0.0",
+    "status": "enabled",
+    "description": "Example TaskFlow authoring pattern for inbox triage. Use when messages need different treatment based on intent, with some routes notifying immediately, some waiting on outside answers, and others rolling into a later summary.",
+    "skill_md_path": "skills/taskflow-inbox-triage/SKILL.md"
+  },
+  {
+    "id": "7b0a06e6-bfdd-446b-9c18-0119ca6f4846",
+    "name": "taskflow",
+    "version": "1.0.0",
+    "status": "enabled",
+    "description": "Use when work should span one or more detached tasks but still behave like one job with a single owner context. TaskFlow is the durable flow substrate under authoring layers like Lobster, ACPX, plugins, or plain code. Keep conditional logic in the caller; use TaskFlow for flow identity, child-task linkage, waiting state, revision-checked mutations, and user-facing emergence.",
+    "skill_md_path": "skills/taskflow/SKILL.md"
+  },
+  {
+    "id": "5f95a113-6025-430b-90a0-5a7a0e258e8c",
+    "name": "session-logs",
+    "version": "1.0.0",
+    "status": "enabled",
+    "description": "Search and analyze your own session logs (older/parent conversations) using jq.",
+    "skill_md_path": "skills/session-logs/SKILL.md"
+  },
+  {
+    "id": "a38f8f4c-1271-4e75-a341-166e7d1f55f2",
+    "name": "healthcheck",
+    "version": "1.0.0",
+    "status": "enabled",
+    "description": "Host security hardening and risk-tolerance configuration for OpenClaw deployments. Use when a user asks for security audits, firewall/SSH/update hardening, risk posture, exposure review, OpenClaw cron scheduling for periodic checks, or version status checks on a machine running OpenClaw (laptop, workstation, Pi, VPS).",
+    "skill_md_path": "skills/healthcheck/SKILL.md"
+  },
+  {
+    "id": "1abf99b4-3110-4df2-a644-44181dd2e674",
+    "name": "goplaces",
+    "version": "1.0.0",
+    "status": "enabled",
+    "description": "Query Google Places API (New) via the goplaces CLI for text search, place details, resolve, and reviews. Use for human-friendly place lookup or JSON output for scripts.",
+    "skill_md_path": "skills/goplaces/SKILL.md"
+  },
+  {
+    "id": "938231b5-f22a-4fe8-be1d-807a37073cfa",
+    "name": "gog",
+    "version": "1.0.0",
+    "status": "enabled",
+    "description": "Google Workspace CLI for Gmail, Calendar, Drive, Contacts, Sheets, and Docs.",
+    "skill_md_path": "skills/gog/SKILL.md"
+  },
+  {
+    "id": "d2133ac2-051d-4f7b-9744-d6e5c655c110",
+    "name": "github",
+    "version": "1.0.0",
+    "status": "enabled",
+    "description": "GitHub operations via `gh` CLI: issues, PRs, CI runs, code review, API queries. Use when: (1) checking PR status or CI, (2) creating/commenting on issues, (3) listing/filtering PRs or issues, (4) viewing run logs. NOT for: complex web UI interactions requiring manual browser flows (use browser tooling when available), bulk operations across many repos (script with gh api), or when gh auth is not configured.",
+    "skill_md_path": "skills/github/SKILL.md"
+  },
+  {
+    "id": "1daa5ff6-6d79-4553-bd7e-22f9a8a5379c",
+    "name": "gifgrep",
+    "version": "1.0.0",
+    "status": "enabled",
+    "description": "Search GIF providers with CLI/TUI, download results, and extract stills/sheets.",
+    "skill_md_path": "skills/gifgrep/SKILL.md"
+  },
+  {
+    "id": "593aa586-5a2c-4ff8-bd74-36080bdfb8c8",
+    "name": "clawhub",
+    "version": "1.0.0",
+    "status": "enabled",
+    "description": "Use the ClawHub CLI to search, install, update, and publish agent skills from clawhub.com. Use when you need to fetch new skills on the fly, sync installed skills to latest or a specific version, or publish new/updated skill folders with the npm-installed clawhub CLI.",
+    "skill_md_path": "skills/clawhub/SKILL.md"
+  },
+  {
+    "id": "6c6de581-7c70-4893-af71-7a47c0dc95bd",
+    "name": "canvas",
+    "version": "1.0.0",
+    "status": "enabled",
+    "description": "",
+    "skill_md_path": "skills/canvas/SKILL.md"
+  },
+  {
+    "id": "98066140-d0d6-4bbc-a870-29c13991628d",
+    "name": "camsnap",
+    "version": "1.0.0",
+    "status": "enabled",
+    "description": "Capture frames or clips from RTSP/ONVIF cameras.",
+    "skill_md_path": "skills/camsnap/SKILL.md"
+  },
+  {
+    "id": "8efa2ce1-65e1-4da6-b23e-c45a28bafb21",
+    "name": "blogwatcher",
+    "version": "1.0.0",
+    "status": "enabled",
+    "description": "Monitor blogs and RSS/Atom feeds for updates using the blogwatcher CLI.",
+    "skill_md_path": "skills/blogwatcher/SKILL.md"
+  },
+  {
+    "id": "8e67c5cb-8bfe-40e4-9e2d-d57a92dec6b0",
+    "name": "1password",
+    "version": "1.0.0",
+    "status": "enabled",
+    "description": "Set up and use 1Password CLI (op). Use when installing the CLI, enabling desktop app integration, signing in (single or multi-account), or reading/injecting/running secrets via op.",
+    "skill_md_path": "skills/1password/SKILL.md"
+  },
+  {
+    "id": "07999fd1-5873-479e-b418-3b2dbab5407b",
+    "name": "weather",
+    "version": "1.0.0",
+    "status": "enabled",
+    "description": "Get current weather and forecasts via wttr.in or Open-Meteo. Use when: user asks about weather, temperature, or forecasts for any location. NOT for: historical weather data, severe weather alerts, or detailed meteorological analysis. No API key needed.",
+    "skill_md_path": "skills/weather/SKILL.md"
+  },
+  {
+    "id": "ec1db7ae-6935-42b6-ac18-b135e43f318b",
+    "name": "hot-news-search",
+    "version": "1.0.0",
+    "status": "enabled",
+    "description": "Search and retrieve top news headlines by category, country, or keywords via NewsAPI.",
+    "skill_md_path": "skills/hot-news-search/SKILL.md"
+  },
+  {
+    "id": "771a4b25-ee7a-47a1-ab6d-8ea3e2b4da0e",
+    "name": "read-local-file",
+    "version": "1.0.0",
+    "status": "enabled",
+    "description": "Reads a local file from the file system when the user asks to read a file.",
+    "skill_md_path": "skills/read-local-file/SKILL.md"
+  },
+  {
+    "id": "925870a7-1178-4f39-9ffd-1b7eb2f18e71",
+    "name": "local-filesystem",
+    "version": "1.0.0",
+    "status": "enabled",
+    "description": "Use this skill when the agent needs to read, write, list, search, move, or delete files and directories on the local file system.",
+    "skill_md_path": "skills/local-filesystem/SKILL.md"
+  },
+  {
+    "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "name": "filesystem",
+    "version": "1.0.0",
+    "status": "enabled",
+    "description": "Read, write, list and search files on the local file system using native file tools.",
+    "skill_md_path": "skills/filesystem/SKILL.md"
+  },
+  {
+    "id": "c3d4e5f6-a7b8-9012-cdef-123456789012",
+    "name": "calendar",
+    "version": "1.0.0",
+    "status": "enabled",
+    "description": "View, create and update Google Calendar events using the gog CLI. Use for scheduling, listing upcoming events and managing event details.",
+    "skill_md_path": "skills/calendar/SKILL.md"
+  },
+  {
+    "id": "f899062c-c058-46f5-9e3e-612e31df8412",
+    "name": "reminder-scheduler",
+    "version": "1.0.0",
+    "status": "enabled",
+    "description": "Schedule a reminder message to the user at a specific time using the `at` command. Use when the user wants to be reminded of something at a particular time.",
+    "skill_md_path": "skills/reminder-scheduler/SKILL.md",
+    "allowed_tools": [
+      "bash_exec"
+    ]
+  },
+  {
+    "id": "d4e5f6a7-b8c9-0123-defa-234567890123",
+    "name": "iot-scan",
+    "version": "1.0.0",
+    "status": "enabled",
+    "description": "Discover IoT devices on the local network by scanning for open ports and fingerprinting device types. Use when the user asks to find, discover, or list network devices, cameras, sensors, or MQTT brokers.",
+    "skill_md_path": "skills/iot-scan/SKILL.md"
+  },
+  {
+    "id": "e5f6a7b8-c9d0-1234-efab-345678901234",
+    "name": "mqtt",
+    "version": "1.0.0",
+    "status": "enabled",
+    "description": "Connect to MQTT brokers, subscribe to topics, read live sensor data, and publish control commands to IoT devices.",
+    "skill_md_path": "skills/mqtt/SKILL.md"
+  },
+  {
+    "id": "f6a7b8c9-d0e1-2345-fabc-456789012345",
+    "name": "ipcam",
+    "version": "1.0.0",
+    "status": "enabled",
+    "description": "Discover and interact with IP cameras on the local network. Use for live stream URLs, snapshot capture, PTZ control, and camera status checks.",
+    "skill_md_path": "skills/ipcam/SKILL.md"
+  },
+  {
+    "id": "a7b8c9d0-e1f2-3456-abcd-567890123456",
+    "name": "iot-sensor",
+    "version": "1.0.0",
+    "status": "enabled",
+    "description": "Read live data from IoT sensors ??temperature, humidity, RFID card scans, digital price tags, and Modbus devices.",
+    "skill_md_path": "skills/iot-sensor/SKILL.md"
+  },
+  {
+    "id": "b8c9d0e1-f2a3-4567-bcde-678901234567",
+    "name": "webcam",
+    "version": "1.0.0",
+    "status": "enabled",
+    "description": "Capture a photo using the laptop's built-in webcam or any connected camera, then describe or analyze what is seen using AI vision. Use when the user asks to take a photo, use the camera, or see what is in front of the laptop.",
+    "skill_md_path": "skills/webcam/SKILL.md"
+  },
+  {
+    "id": "539e8ae1-2771-4877-bcf4-e08e65b0044f",
+    "name": "read-email",
+    "version": "1.0.0",
+    "status": "enabled",
+    "description": "Read email. Routes to gmail skill for Gmail (browser session, login once) or outlook skill for Outlook/Office 365 (IMAP + App Password).",
+    "skill_md_path": "skills/read-email/SKILL.md",
+    "allowed_tools": [
+      "file_read",
+      "file_write",
+      "bash_exec"
+    ]
+  },
+  {
+    "id": "27e68bab-cc42-40b1-9e87-31f32022aa61",
+    "name": "shelf-restock-monitor",
+    "version": "1.0.0",
+    "status": "enabled",
+    "description": "Monitor supermarket shelf camera footage to identify items requiring restocking and generate prioritized restock reports with multi-agent task dispatch.",
+    "skill_md_path": "skills/shelf-restock-monitor/SKILL.md",
+    "allowed_tools": [
+      "bash_exec",
+      "file_write",
+      "file_read",
+      "file_list",
+      "think"
+    ]
+  },
+  {
+    "id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+    "name": "problem-solver",
+    "version": "1.0.0",
+    "status": "enabled",
+    "description": "Autonomous problem-solving protocol. When AAOS encounters an error, failure, or complex issue it cannot immediately resolve, it MUST follow the Plan ??Execute ??Verify loop (minimum 2 verification cycles) before asking the user for help or giving up.",
+    "skill_md_path": "skills/problem-solver/SKILL.md"
+  },
+  {
+    "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "name": "playwright",
+    "version": "1.0.0",
+    "status": "enabled",
+    "description": "Persistent-session browser automation via the Playwright MCP server. Provides dedicated browser_* tools for navigation, clicking, typing, form filling, screenshots, accessibility snapshots, JavaScript evaluation, tab management, network inspection, and PDF export. Prefer over the bash-based browser skill when you need multi-step flows, maintained login state, or structured page inspection.",
+    "skill_md_path": "skills/playwright/SKILL.md"
+  },
+  {
+    "id": "d7e8f9a0-b1c2-4d3e-8f5a-6b7c8d9e0f1a",
+    "name": "gmail",
+    "version": "4.0.0",
+    "status": "enabled",
+    "description": "Read, search, and send Gmail emails. Uses persistent browser session ??log in once via browser_setup, session saved forever. No App Password needed. IMAP available as fallback if credentials provided.",
+    "skill_md_path": "skills/gmail/SKILL.md",
+    "allowed_tools": [
+      "bash_exec",
+      "sys_info",
+      "credentials_read",
+      "credentials_save",
+      "web_login",
+      "browser_snapshot",
+      "browser_setup",
+      "browser_navigate",
+      "browser_click",
+      "browser_type"
+    ]
+  },
+  {
+    "id": "e8f9a0b1-c2d3-4e5f-9a6b-7c8d9e0f1a2b",
+    "name": "outlook",
+    "version": "2.0.0",
+    "status": "enabled",
+    "description": "Read, search, and send Outlook / Office 365 emails using IMAP (reliable, no browser). Requires a one-time Microsoft App Password from account.microsoft.com/security. Falls back to browser if IMAP not available.",
+    "skill_md_path": "skills/outlook/SKILL.md",
+    "allowed_tools": [
+      "bash_exec",
+      "sys_info",
+      "credentials_read",
+      "credentials_save",
+      "web_login",
+      "browser_snapshot",
+      "browser_setup"
+    ]
+  }
+]
