@@ -193,7 +193,8 @@
       "Bash(powershell.exe -Command \"Get-Content 'C:\\\\Users\\\\User\\\\Code\\\\AAOS\\\\workspace\\\\skills\\\\registry.json' | Select-String 'outlook'\")",
       "Bash(powershell.exe -Command \"Get-ChildItem 'C:\\\\Users\\\\User\\\\Downloads\\\\outlook-skill' -Recurse | Select-Object FullName\")",
       "Bash(ls \"C:/Users/User/Code/AAOS/workspace/scripts/outlook365\"*)",
-      "Bash(python3 -c \"import json; data=json.load\\(open\\('C:/Users/User/Code/AAOS/workspace/skills/registry.json'\\)\\); entry=[e for e in data if e['name']=='outlook365']; print\\(json.dumps\\(entry, indent=2\\)\\)\")"
+      "Bash(python3 -c \"import json; data=json.load\\(open\\('C:/Users/User/Code/AAOS/workspace/skills/registry.json'\\)\\); entry=[e for e in data if e['name']=='outlook365']; print\\(json.dumps\\(entry, indent=2\\)\\)\")",
+      "Bash(echo \"exit:$?\")"
     ]
   }
 }
