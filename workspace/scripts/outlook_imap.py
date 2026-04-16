@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
 """
 outlook_imap.py — AAOS Outlook / Office 365 IMAP reader/sender
-
-Uses Python's built-in imaplib + smtplib (no external packages).
-Requires a Microsoft App Password (created at account.microsoft.com/security).
+v2.1.0 — credentials read from Windows Credential Manager (never passed as CLI args)
 
 Usage:
-  python outlook_imap.py unread   <n> <email> <app_password>
-  python outlook_imap.py search   <query> <n> <email> <app_password>
-  python outlook_imap.py read     <uid> <email> <app_password>
-  python outlook_imap.py send     <email> <app_password> <to> <subject> <body>
+  python outlook_imap.py unread  <n>                          --service <svc>
+  python outlook_imap.py search  <query> <n>                  --service <svc>
+  python outlook_imap.py read    <uid>                        --service <svc>
+  python outlook_imap.py send    <to> <subject> <body>        --service <svc>
+
+<svc> is the AAOS credential-manager service name (e.g. "outlookimap").
+Credentials (email + password) are retrieved securely from the OS keyring —
+they are NEVER passed on the command line.
 
 All output is JSON to stdout.
 """
@@ -20,6 +22,7 @@ import email
 import json
 import sys
 import ssl
+import argparse
 from email.header import decode_header
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -29,6 +32,41 @@ IMAP_HOST = "outlook.office365.com"
 IMAP_PORT = 993
 SMTP_HOST = "smtp.office365.com"
 SMTP_PORT = 587
+
+KEYRING_NAMESPACE = "AAOS"
+
+
+# ─── Credential loader ────────────────────────────────────────────────────────
+
+def load_credentials(service: str) -> tuple[str, str]:
+    """
+    Read email + password from Windows Credential Manager via keyring.
+    Raises RuntimeError with a user-friendly message on failure.
+    """
+    try:
+        import keyring
+    except ImportError:
+        raise RuntimeError("keyring not installed — run: pip install keyring")
+
+    raw = keyring.get_password(KEYRING_NAMESPACE, service.lower())
+    if raw is None:
+        raise RuntimeError(
+            f"No credentials found for service '{service}'. "
+            f"Use credentials_save(service='{service}', fields={{email:'...', password:'...'}}) to store them first."
+        )
+    try:
+        fields = json.loads(raw)
+    except Exception as e:
+        raise RuntimeError(f"Corrupt credential data for '{service}': {e}")
+
+    email_addr = fields.get("email") or fields.get("username")
+    password   = fields.get("password") or fields.get("passwd")
+    if not email_addr or not password:
+        raise RuntimeError(
+            f"Credentials for '{service}' are missing 'email' or 'password' fields. "
+            f"Re-save with: credentials_save(service='{service}', fields={{email:'...', password:'...'}})"
+        )
+    return email_addr, password
 
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -118,6 +156,15 @@ def cmd_search(query, n, email_addr, password):
     return {"count": len(uids), "shown": len(results), "emails": results}
 
 
+def cmd_read(uid, email_addr, password):
+    mail = connect(email_addr, password)
+    mail.select("INBOX")
+    results = fetch_emails(mail, [uid.encode() if isinstance(uid, str) else uid])
+    mail.close()
+    mail.logout()
+    return {"emails": results}
+
+
 def cmd_send(email_addr, password, to, subject, body):
     msg = MIMEMultipart()
     msg["From"] = email_addr
@@ -137,23 +184,48 @@ def cmd_send(email_addr, password, to, subject, body):
 # ─── Entry point ─────────────────────────────────────────────────────────────
 
 def main():
-    if len(sys.argv) < 2:
-        print(json.dumps({"error": "No command. Use: unread|search|send"}))
+    parser = argparse.ArgumentParser(description="AAOS Outlook IMAP tool")
+    parser.add_argument("command", choices=["unread", "search", "read", "send"],
+                        help="Action to perform")
+    parser.add_argument("args", nargs="*",
+                        help="Positional arguments for the command")
+    parser.add_argument("--service", default="outlookimap",
+                        help="AAOS credential-manager service name (default: outlookimap)")
+    opts = parser.parse_args()
+
+    try:
+        email_addr, password = load_credentials(opts.service)
+    except RuntimeError as e:
+        print(json.dumps({"error": str(e)}))
         sys.exit(1)
 
-    cmd = sys.argv[1]
     try:
+        cmd  = opts.command
+        args = opts.args
+
         if cmd == "unread":
-            n, email_addr, password = int(sys.argv[2]), sys.argv[3], sys.argv[4]
+            n = int(args[0]) if args else 5
             result = cmd_unread(n, email_addr, password)
 
         elif cmd == "search":
-            query, n, email_addr, password = sys.argv[2], int(sys.argv[3]), sys.argv[4], sys.argv[5]
-            result = cmd_search(query, n, email_addr, password)
+            if len(args) < 1:
+                result = {"error": "search requires: <query> [n]"}
+            else:
+                query = args[0]
+                n     = int(args[1]) if len(args) > 1 else 5
+                result = cmd_search(query, n, email_addr, password)
+
+        elif cmd == "read":
+            if not args:
+                result = {"error": "read requires: <uid>"}
+            else:
+                result = cmd_read(args[0], email_addr, password)
 
         elif cmd == "send":
-            email_addr, password, to, subject, body = sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5], sys.argv[6]
-            result = cmd_send(email_addr, password, to, subject, body)
+            if len(args) < 3:
+                result = {"error": "send requires: <to> <subject> <body>"}
+            else:
+                result = cmd_send(email_addr, password, args[0], args[1], args[2])
 
         else:
             result = {"error": f"Unknown command: {cmd}"}
@@ -162,12 +234,16 @@ def main():
 
     except imaplib.IMAP4.error as e:
         err = str(e)
-        if "AUTHENTICATIONFAILED" in err or "LOGIN failed" in err.upper():
+        if "AUTHENTICATIONFAILED" in err.upper() or "LOGIN failed" in err.upper():
             print(json.dumps({
                 "error": "Authentication failed",
-                "hint": "Outlook IMAP requires a Microsoft App Password. "
-                        "Create one at: https://account.microsoft.com/security "
-                        "→ Advanced security options → App passwords"
+                "hint": (
+                    "Outlook IMAP requires a Microsoft App Password. "
+                    "Create one at: https://account.microsoft.com/security "
+                    "→ Advanced security options → App passwords. "
+                    f"Then re-save: credentials_save(service='{opts.service}', "
+                    "fields={email:'...', password:'<app_password>'})"
+                )
             }))
         else:
             print(json.dumps({"error": f"IMAP error: {err}"}))
