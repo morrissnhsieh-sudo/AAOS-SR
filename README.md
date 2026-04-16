@@ -1,5 +1,5 @@
-# USI AI‑OS<sup>®</sup>
-## AAOS — Autonomous Agent Operating System
+# USI AI‑OS<sup>®</sup> - Personal Assistant
+## Project - AAOS (Autonomous Agent Operating System)
 
 A self-hosted, cross-platform AI agent gateway. AAOS runs a persistent agent server that connects to your choice of LLM provider, executes tools, manages long-term memory, ingests documents into a knowledge base, controls IoT devices, and schedules background agent tasks — all without cloud lock-in.
 
