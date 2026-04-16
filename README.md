@@ -47,9 +47,10 @@ git clone https://github.com/your-org/aaos.git
 cd aaos
 npm install
 
-# 2. Create your environment file
+# 2. Create your environment file from the template
 cp .env.example .env
-# Edit .env with your API keys (see Environment Configuration below)
+# Open .env and fill in your API keys and workspace path
+# (see Environment Configuration section below for all options)
 
 # 3. Start the server
 npm run dev          # development (hot-reload via tsx)
