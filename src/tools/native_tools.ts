@@ -307,7 +307,14 @@ export function register_native_tools(): void {
                 snapshotsDir:    process.env.AAOS_SNAPSHOTS_DIR || path.join(os.tmpdir(), 'aaos_snapshots'),  // where webcam photos are saved
                 snapshotsUrl:    '/snapshots',   // web path to access saved photos
                 commandStyle:    isWin
-                    ? `The HOST OS is Windows (win32). bash_exec runs inside WSL (Linux), so bash commands like 'uname' and 'cat /etc/os-release' return Ubuntu/Linux — NOT the real OS. ALWAYS use sys_info (this tool) for OS detection, never shell commands. ${bashNote || 'check bashDrivePrefix before writing any path'}. NEVER use bare 'python' or 'python3' — always use the pythonExe value above.`
+                    ? `HOST OS is Windows (win32). CRITICAL RULES FOR bash_exec ON WINDOWS: ` +
+                      `(1) PYTHON: always use the pythonExe path shown above (e.g. "${WINDOWS_PYTHON}" "C:\\\\script.py" arg1 arg2). ` +
+                      `(2) PATHS: prefer Windows-style C:\\ or C:/ paths in all commands — bash_exec auto-converts /mnt/c/ WSL paths to C:/ and uses cmd.exe, but it is cleaner to write Windows paths directly. ` +
+                      `(3) NEVER mix /mnt/c/ WSL paths with C:\\ Windows paths in the same command — pick one style. ` +
+                      `(4) NEVER use bare 'python' or 'python3' — always use the pythonExe value. ` +
+                      `(5) bash_exec detects Windows paths and WSL paths automatically and picks cmd.exe or bash accordingly. ` +
+                      `(6) bash commands like 'uname'/'cat /etc/os-release' return Linux (WSL) — NOT the real OS. Always use sys_info for OS detection. ` +
+                      `${bashNote || ''}`
                     : 'Use POSIX syntax. Standard Unix tools available.'
             };
         }
@@ -1041,19 +1048,30 @@ print(json.dumps({"ok": True, "frames": frames_b64, "total_frames": total, "fps"
         },
         async (args: { command: string }) => {
             try {
-                // On Windows: use bash for Unix-style commands, but fall back to cmd.exe
-                // when the command starts with a Windows absolute path (e.g. C:\Python\python.exe ...)
-                // because bash cannot execute Windows paths with backslashes.
+                let execCommand = args.command;
                 let shell: string;
+
                 if (process.platform === 'win32') {
-                    const trimCmd = args.command.trimStart();
-                    const isWindowsPath = /^[a-zA-Z]:[/\\]/.test(trimCmd);
-                    // Windows paths (C:\...) need cmd.exe; Unix-style commands use Git Bash
-                    shell = isWindowsPath ? 'cmd.exe' : 'bash';
+                    // Auto-convert WSL drive paths (/mnt/c/... or /mnt/C/...) to Windows
+                    // paths (C:/...) so cmd.exe can execute them reliably.
+                    // This fixes the common LLM mistake of building /mnt/c/ paths for
+                    // Windows executables when sys_info reports bash (WSL) as the shell.
+                    if (/\/mnt\/[a-zA-Z]\//.test(execCommand)) {
+                        execCommand = execCommand.replace(/\/mnt\/([a-zA-Z])\//g,
+                            (_: string, d: string) => `${d.toUpperCase()}:/`);
+                        shell = 'cmd.exe';
+                        console.log(`[bash_exec] WSL→Windows path conversion applied. Using cmd.exe: ${execCommand.slice(0, 120)}`);
+                    } else {
+                        // Quoted or unquoted Windows absolute path → cmd.exe; otherwise bash
+                        const trimCmd = execCommand.trimStart();
+                        const isWindowsPath = /^"?[a-zA-Z]:[/\\]/.test(trimCmd);
+                        shell = isWindowsPath ? 'cmd.exe' : 'bash';
+                    }
                 } else {
                     shell = '/bin/sh';
                 }
-                const stdout = child_process.execSync(args.command, {
+
+                const stdout = child_process.execSync(execCommand, {
                     shell,
                     timeout: EXEC_TIMEOUT_MS,
                     encoding: 'utf8' as const,
