@@ -79,6 +79,7 @@ export function validate_session_log_writable(logPath: string): boolean {
 
 export async function io_initialize_session_log_file(sessionId: string): Promise<string> {
     const p = path.join(getWorkspace(), SESSION_LOG_DIR, `${session_id_to_filename(sessionId)}.jsonl`);
+    fs.mkdirSync(path.dirname(p), { recursive: true });
     if (!fs.existsSync(p)) fs.writeFileSync(p, '');
     return p;
 }
