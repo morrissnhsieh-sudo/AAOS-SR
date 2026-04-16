@@ -33,7 +33,7 @@ export const pluginRegistry = new Map<string, Plugin>();
 export interface ModelAssignment { provider: string; model: string; }
 export type RoleModelConfig = Record<string, ModelAssignment>;
 
-export const AGENT_ROLES = ['chatbot', 'skill_builder', 'memory_extractor', 'wiki_compiler', 'thinker'] as const;
+export const AGENT_ROLES = ['chatbot', 'skill_builder', 'memory_extractor', 'wiki_compiler', 'thinker', 'intake', 'planner', 'verifier'] as const;
 export type AgentRole = typeof AGENT_ROLES[number];
 
 // ── Thinking levels ───────────────────────────────────────────────────────────
@@ -55,6 +55,9 @@ export const ROLE_LABELS: Record<string, string> = {
     memory_extractor: 'Memory Extractor',
     wiki_compiler:    'Wiki Compiler',
     thinker:          'Deep Thinker',
+    intake:           'Intake Agent',
+    planner:          'Planner',
+    verifier:         'Verifier',
 };
 
 export const AVAILABLE_MODELS: Record<string, Array<{ id: string; label: string; thinking?: boolean }>> = {

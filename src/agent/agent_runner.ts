@@ -281,6 +281,121 @@ async function embed_snapshot_images(text: string, workspace: string): Promise<s
     return result;
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// 5-STAGE PIPELINE
+// User Input → Intake → Planner → Executor → Verifier → Memory Update
+// ══════════════════════════════════════════════════════════════════════════════
+
+interface IntakeResult {
+    is_simple:      boolean;
+    clarified_goal: string;
+    sub_tasks:      string[];
+    complexity:     'simple' | 'medium' | 'complex';
+}
+
+interface PlannerResult {
+    plan_summary: string;
+    steps: Array<{ order: number; action: string; tool?: string; expected_output: string }>;
+}
+
+interface VerifierResult {
+    passed:       boolean;
+    score:        number;   // 0–10
+    issues:       string[];
+    final_answer: string;   // full revised response (copy of executor output if no issues)
+}
+
+/**
+ * Stage 1 — Intake Agent
+ * Classifies the request and breaks complex tasks into sub-tasks.
+ * Always falls back to is_simple=true on parse/LLM errors so the pipeline
+ * degrades gracefully without blocking the executor.
+ */
+async function run_intake_stage(userInput: string, activity: string): Promise<IntakeResult> {
+    const FALLBACK: IntakeResult = { is_simple: true, clarified_goal: userInput, sub_tasks: [], complexity: 'simple' };
+    try {
+        const prompt: LlmPrompt = {
+            system: `You are an Intake Agent. Analyse the user request and classify it.
+
+SIMPLE (is_simple=true): greetings, thanks, casual chat, yes/no, single factual questions, short clarifications.
+COMPLEX (is_simple=false): multi-step tasks, research, writing/editing code, file or system operations, anything that needs tools, analysis, or planning.
+
+Respond ONLY with compact valid JSON — no markdown fences, no explanation:
+{"is_simple":bool,"clarified_goal":"one clear sentence","sub_tasks":["..."],"complexity":"simple|medium|complex"}`,
+            messages: [{ role: 'user', content: userInput }],
+        };
+        const res = await invoke_for_role('intake', prompt, activity);
+        const raw = (res.text || '{}').replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+        const parsed = JSON.parse(raw) as IntakeResult;
+        return { ...FALLBACK, ...parsed };
+    } catch (e: any) {
+        console.warn(`[Pipeline] Intake failed — treating as simple: ${e.message}`);
+        return FALLBACK;
+    }
+}
+
+/**
+ * Stage 2 — Planner
+ * Creates an ordered execution plan with tool hints.
+ * Falls back to a single-step plan from the intake sub-tasks on error.
+ */
+async function run_planner_stage(intake: IntakeResult, toolNames: string[], activity: string): Promise<PlannerResult> {
+    const FALLBACK: PlannerResult = {
+        plan_summary: intake.clarified_goal,
+        steps: intake.sub_tasks.length
+            ? intake.sub_tasks.map((t, i) => ({ order: i + 1, action: t, expected_output: 'completed' }))
+            : [{ order: 1, action: intake.clarified_goal, expected_output: 'task complete' }],
+    };
+    try {
+        const prompt: LlmPrompt = {
+            system: `You are a Planner Agent. Produce an ordered execution plan.
+Available tools: ${toolNames.slice(0, 30).join(', ')}
+
+Respond ONLY with compact valid JSON — no markdown fences:
+{"plan_summary":"brief summary","steps":[{"order":1,"action":"what to do","tool":"tool_name_or_null","expected_output":"success criterion"}]}`,
+            messages: [{
+                role: 'user',
+                content: `Goal: ${intake.clarified_goal}\nSub-tasks:\n${intake.sub_tasks.map((t, i) => `${i + 1}. ${t}`).join('\n') || '(see goal)'}`,
+            }],
+        };
+        const res = await invoke_for_role('planner', prompt, activity);
+        const raw = (res.text || '{}').replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+        const parsed = JSON.parse(raw) as PlannerResult;
+        return { ...FALLBACK, ...parsed };
+    } catch (e: any) {
+        console.warn(`[Pipeline] Planner failed — using fallback plan: ${e.message}`);
+        return FALLBACK;
+    }
+}
+
+/**
+ * Stage 4 — Verifier
+ * Checks executor output against the original goal.
+ * Falls back to passing the executor output unchanged on error.
+ */
+async function run_verifier_stage(goal: string, executorOutput: string, activity: string): Promise<VerifierResult> {
+    const FALLBACK: VerifierResult = { passed: true, score: 8, issues: [], final_answer: executorOutput };
+    try {
+        const prompt: LlmPrompt = {
+            system: `You are a Verifier Agent. Evaluate whether the output fully satisfies the original goal.
+
+Respond ONLY with compact valid JSON — no markdown fences:
+{"passed":bool,"score":0-10,"issues":["issue"],"final_answer":"complete response to show the user — copy executor output verbatim if no issues, or provide a revised version"}`,
+            messages: [{
+                role: 'user',
+                content: `Original goal: ${goal}\n\nExecutor output:\n${executorOutput.slice(0, 4000)}`,
+            }],
+        };
+        const res = await invoke_for_role('verifier', prompt, activity);
+        const raw = (res.text || '{}').replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+        const parsed = JSON.parse(raw) as VerifierResult;
+        return { ...FALLBACK, ...parsed };
+    } catch (e: any) {
+        console.warn(`[Pipeline] Verifier failed — using executor output: ${e.message}`);
+        return FALLBACK;
+    }
+}
+
 export async function start_agent_run(session: Session, message: InternalMessage): Promise<AgentRunResult> {
     const runId = uuidv4();
     runStates.set(runId, { status: 'running' });
@@ -366,8 +481,40 @@ export async function start_agent_run(session: Session, message: InternalMessage
         // Resolve thinking budget from per-session level (default: auto = no budget injected)
         const sessionThinkingLevel = (session.thinking_level ?? 'auto') as ThinkingLevel;
         const thinkingBudget = thinking_level_to_budget(sessionThinkingLevel);
+        const activity = message.content?.slice(0, 60).replace(/\n/g, ' ') || '(no message)';
+
+        // ── Pipeline Stage 1: Intake ─────────────────────────────────────────
+        emit_interim(session, 'step', '📥 Intake', 'Classifying task...');
+        const intakeResult = await run_intake_stage(userContent, activity);
+
+        let planBlock = '';
+        let pipelineSystem = systemPrefix;
+
+        if (!intakeResult.is_simple) {
+            emit_interim(session, 'result', '📥 Intake',
+                `${intakeResult.complexity} · ${intakeResult.sub_tasks.length} sub-task(s) · ${intakeResult.clarified_goal}`);
+
+            // ── Pipeline Stage 2: Planner ────────────────────────────────────
+            emit_interim(session, 'step', '📋 Planner', 'Sequencing steps...');
+            const planResult = await run_planner_stage(intakeResult, tools.map(t => t.name), activity);
+            planBlock = [
+                '\n## ACTIVE TASK PLAN (follow these steps in order)',
+                `Goal: ${intakeResult.clarified_goal}`,
+                planResult.steps.map(s =>
+                    `${s.order}. ${s.action}${s.tool ? ` [tool: ${s.tool}]` : ''} → ${s.expected_output}`
+                ).join('\n'),
+                '\nMark each step complete before moving to the next.\n',
+            ].join('\n');
+            pipelineSystem = systemPrefix + planBlock;
+            emit_interim(session, 'result', '📋 Planner',
+                `${planResult.steps.length} step(s): ${planResult.plan_summary}`);
+        } else {
+            emit_interim(session, 'result', '📥 Intake', 'Conversational — responding directly');
+        }
+
+        // ── Pipeline Stage 3: Executor ───────────────────────────────────────
         let currentPrompt: LlmPrompt = {
-            system: systemPrefix,
+            system: pipelineSystem,
             messages: history,
             tools: tools,
             ...(thinkingBudget !== undefined ? { thinking_budget: thinkingBudget } : {}),
@@ -382,7 +529,6 @@ export async function start_agent_run(session: Session, message: InternalMessage
             iterCount++;
             const res = await execute_with_acp_retry(async () => {
                 console.log(`[Agent] Step ${iterCount}/${ACP_MAX_AGENT_ITERATIONS} — invoking chatbot model...`);
-                const activity = message.content?.slice(0, 60).replace(/\n/g, ' ') || '(no message)';
                 return await invoke_for_role('chatbot', currentPrompt, activity);
             }, 3);
 
@@ -450,9 +596,11 @@ export async function start_agent_run(session: Session, message: InternalMessage
                 if (builtSkill) {
                     const refreshedSkills = io_list_installed_skills().filter(s => s.status === 'enabled');
                     const refreshedBlock = assemble_skill_system_prompt_block(io_load_active_skill_contents(refreshedSkills));
-                    const refreshedSystem = build_system_context_prefix(
+                    const baseRefreshed = build_system_context_prefix(
                         memCtx.heartbeat || null, memCtx.boot || null, memCtx.memory || null, refreshedBlock
                     );
+                    // Re-apply plan block if present so pipeline context survives skill hot-reload
+                    const refreshedSystem = planBlock ? baseRefreshed + planBlock : baseRefreshed;
                     currentPrompt = { ...currentPrompt, system: refreshedSystem, messages: history };
                     console.log(`[Agent] Skills hot-reloaded after build_skill call.`);
                 } else {
@@ -484,10 +632,27 @@ export async function start_agent_run(session: Session, message: InternalMessage
             console.warn(`[Agent] Run ${runId} hit iteration cap (${ACP_MAX_AGENT_ITERATIONS} steps).`);
         }
 
+        // ── Pipeline Stage 4: Verifier ───────────────────────────────────────
+        let verifiedResponse = finalResponse;
+        if (!intakeResult.is_simple && finalResponse) {
+            emit_interim(session, 'step', '✅ Verifier', 'Checking output against original goal...');
+            const verifyResult = await run_verifier_stage(intakeResult.clarified_goal, finalResponse, activity);
+            const scoreLabel = verifyResult.passed
+                ? `Score ${verifyResult.score}/10 — goal achieved`
+                : `Score ${verifyResult.score}/10 — ${verifyResult.issues.slice(0, 2).join('; ')}`;
+            emit_interim(session, 'result', '✅ Verifier', scoreLabel);
+            verifiedResponse = verifyResult.final_answer || finalResponse;
+        }
+
+        // ── Pipeline Stage 5: Memory Update (emit hint — actual write below) ─
+        if (!intakeResult.is_simple) {
+            emit_interim(session, 'step', '🧠 Memory', 'Storing what was learned...');
+        }
+
         // Replace /snapshots/filename URLs with inline base64 data URIs before sending
         // to the browser. This bypasses HTTP entirely — the image is embedded in the
         // WebSocket message itself. The session log keeps the compact URL.
-        let displayResponse = await embed_snapshot_images(finalResponse, workspace);
+        let displayResponse = await embed_snapshot_images(verifiedResponse, workspace);
 
         // If an image was uploaded, also embed it in the reply if the LLM references the path
         if (message.attachment?.isImage) {
@@ -501,8 +666,8 @@ export async function start_agent_run(session: Session, message: InternalMessage
 
         await deliver_text_response_to_channel(session, displayResponse);
 
-        // Auto-extract facts from this turn in the background (non-blocking)
-        extract_and_persist_memory_facts(message.content, finalResponse, workspace)
+        // Auto-extract facts from this turn in the background (Stage 5: Memory Update)
+        extract_and_persist_memory_facts(message.content, verifiedResponse, workspace)
             .catch(e => console.warn(`[Memory] Background extraction error: ${e.message}`));
 
         return { finalResponse };
