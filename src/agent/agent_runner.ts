@@ -804,6 +804,11 @@ export async function start_agent_run(session: Session, message: InternalMessage
             emit_interim(session, 'step', '🧠 Memory', 'Storing what was learned...');
         }
 
+        // Sanitize artefacts that must never reach the user or be stored in history.
+        // "No response generated." was a historic fallback string; strip it wherever
+        // the LLM may have echoed it from earlier (now-cleaned) session logs.
+        verifiedResponse = verifiedResponse.replace(/\n?No response generated\.$/g, '').trimEnd();
+
         // Replace /snapshots/filename URLs with inline base64 data URIs before sending
         // to the browser. This bypasses HTTP entirely — the image is embedded in the
         // WebSocket message itself. The session log keeps the compact URL.
