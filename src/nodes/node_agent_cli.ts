@@ -14,11 +14,11 @@ const nodeToken = jwt.sign({ deviceId: nodeId, role: 'node' }, secret, { algorit
 const wsUrl = `${GATEWAY_URL}?token=${nodeToken}`;
 
 function connect(): void {
-    console.log(`[${nodeId}] Connecting to TypeScript AAOS Gateway at ${GATEWAY_URL}...`);
+    console.log(`[${nodeId}] Connecting to USI AI\u2011OS\u00ae - Personal Assistant at ${GATEWAY_URL}...`);
     const ws = new WebSocket(wsUrl);
 
     ws.on('open', () => {
-        console.log(`[${nodeId}] Connected to AAOS Gateway.`);
+        console.log(`[${nodeId}] Connected to USI AI\u2011OS\u00ae - Personal Assistant.`);
     });
 
     ws.on('message', (data) => {

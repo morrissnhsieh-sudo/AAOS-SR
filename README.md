@@ -67,7 +67,7 @@ Connect via WebSocket at **ws://localhost:3000/ws/chat**.
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                   AAOS Gateway (port 3000)              │
+│           USI AI‑OS® - Personal Assistant (port 3000)   │
 │                                                         │
 │  WebSocket ──► Channel Manager ──► Agent Runner         │
 │  REST API  ──►                     │                    │

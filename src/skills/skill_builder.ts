@@ -42,7 +42,7 @@ function getWorkspace(): string {
  * Pass repairFeedback when asking the LLM to fix a previous bad attempt.
  */
 export function generate_skill_build_prompt(description: string): string {
-    return `You are a SKILL.md authoring agent for the AAOS gateway.
+    return `You are a SKILL.md authoring agent for USI AI\u2011OS\u00ae - Personal Assistant.
 Output ONLY a valid SKILL.md file — no commentary, no markdown code fences around it.
 
 ## Available tools

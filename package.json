@@ -1,7 +1,7 @@
 {
   "name": "aaos-gateway",
   "version": "0.1.0",
-  "description": "AAOS Gateway",
+  "description": "USI AI\u2011OS\u00ae - Personal Assistant",
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx src/index.ts",

@@ -42,7 +42,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             messageInput.disabled = false;
             sendBtn.disabled = false;
             attachBtn.disabled = false;
-            addSystemMessage('Connected to AAOS Gateway. Chat with your agent below.');
+            addSystemMessage('Connected to USI AI\u2011OS\u00ae - Personal Assistant. Chat with your agent below.');
         };
         ws.onmessage = (event) => {
             try {

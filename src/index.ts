@@ -488,7 +488,7 @@ async function start_server(): Promise<void> {
 start_server();
 
 function onListening() {
-    console.log('AAOS Gateway listening on port 3000');
+    console.log('USI AI\u2011OS\u00ae - Personal Assistant listening on port 3000');
     load_model_config(getWorkspace());
     register_native_tools();
     register_deep_think_tool();
