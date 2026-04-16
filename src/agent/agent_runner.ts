@@ -475,6 +475,7 @@ async function run_executor_loop(
     let lastToolSig = '';
     let lastPartialText = '';
     let history = initialHistory;
+    let brokeClean = false;   // true when loop exited via a text-only final turn
 
     while (iterCount < ACP_MAX_AGENT_ITERATIONS) {
         iterCount++;
@@ -555,20 +556,29 @@ async function run_executor_loop(
                 currentPrompt = { ...currentPrompt, messages: history };
             }
         } else {
-            finalResponse = res.text || 'No response generated.';
-            const assistantMsg: Message = {
-                id: uuidv4(), session_id: session.id, role: 'assistant',
-                content: finalResponse, created_at: new Date(), token_count: finalResponse.length
-            };
-            history.push(assistantMsg);
-            await io_append_message_to_session_log(session.id, assistantMsg);
-            console.log(`[Agent] Final reply (first 200): ${finalResponse.slice(0, 200).replace(/\n/g, '↵')}`);
+            if (res.text) {
+                finalResponse = res.text;
+                const assistantMsg: Message = {
+                    id: uuidv4(), session_id: session.id, role: 'assistant',
+                    content: finalResponse, created_at: new Date(), token_count: finalResponse.length
+                };
+                history.push(assistantMsg);
+                await io_append_message_to_session_log(session.id, assistantMsg);
+                console.log(`[Agent] Final reply (first 200): ${finalResponse.slice(0, 200).replace(/\n/g, '↵')}`);
+            } else {
+                // LLM returned empty text on its final turn (e.g. after a tool-only step).
+                // The real response was already saved in the previous tool-call message via
+                // lastPartialText — reuse it so we don't emit a duplicate or blank message.
+                finalResponse = lastPartialText;
+                console.log(`[Agent] Empty final text — reusing lastPartialText as response.`);
+            }
+            brokeClean = true;
             break;
         }
     }
 
     // Hit the iteration cap without a clean text exit
-    if (!finalResponse) {
+    if (!brokeClean && !finalResponse) {
         finalResponse = lastPartialText ||
             `Task required more than ${ACP_MAX_AGENT_ITERATIONS} steps and was stopped. Try breaking it into smaller parts.`;
         const capMsg: Message = {
