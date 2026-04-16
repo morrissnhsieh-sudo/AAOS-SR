@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
 outlook_imap.py — AAOS Outlook / Office 365 IMAP reader/sender
-v2.1.0 — credentials read from Windows Credential Manager (never passed as CLI args)
+v2.2.0 — credentials read from Windows Credential Manager (never passed as CLI args)
+        default service name standardised to "outlookimap" (no underscore)
 
 Usage:
   python outlook_imap.py unread  <n>                          --service <svc>
@@ -52,7 +53,7 @@ def load_credentials(service: str) -> tuple[str, str]:
     if raw is None:
         raise RuntimeError(
             f"No credentials found for service '{service}'. "
-            f"Use credentials_save(service='{service}', fields={{email:'...', password:'...'}}) to store them first."
+            f"Use credentials_save(service='outlookimap', fields={{email:'...', password:'<app_password>'}}) to store them first."
         )
     try:
         fields = json.loads(raw)
@@ -64,7 +65,7 @@ def load_credentials(service: str) -> tuple[str, str]:
     if not email_addr or not password:
         raise RuntimeError(
             f"Credentials for '{service}' are missing 'email' or 'password' fields. "
-            f"Re-save with: credentials_save(service='{service}', fields={{email:'...', password:'...'}})"
+            f"Re-save with: credentials_save(service='outlookimap', fields={{email:'...', password:'<app_password>'}})"
         )
     return email_addr, password
 
@@ -189,8 +190,8 @@ def main():
                         help="Action to perform")
     parser.add_argument("args", nargs="*",
                         help="Positional arguments for the command")
-    parser.add_argument("--service", default="outlook_imap",
-                        help="AAOS credential-manager service name (default: outlook_imap)")
+    parser.add_argument("--service", default="outlookimap",
+                        help="AAOS credential-manager service name (default: outlookimap)")
     opts = parser.parse_args()
 
     try:
