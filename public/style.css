@@ -112,6 +112,26 @@ body {
 .model-switch-status.ok  { color: var(--success); }
 .model-switch-status.err { color: var(--danger); }
 
+/* 🧠 Thinking level button group */
+.thinking-level-group { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.thinking-btns { display: flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.thinking-btn {
+    background: transparent;
+    border: none;
+    border-right: 1px solid var(--border);
+    color: var(--text-muted);
+    font-family: 'Inter', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 5px 9px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    white-space: nowrap;
+}
+.thinking-btn:last-child { border-right: none; }
+.thinking-btn:hover { background: rgba(255,255,255,0.06); color: var(--text); }
+.thinking-btn.active { background: rgba(139,92,246,0.18); color: #c084fc; }
+
 /* ⚙️ Per-agent model config toggle button */
 .btn-models-toggle {
     background: rgba(99,102,241,0.12);
@@ -571,7 +591,7 @@ body {
     grid-template-columns: repeat(3, 1fr);
     gap: 10px;
 }
-@media (min-width: 1100px) { .usage-cards { grid-template-columns: repeat(6, 1fr); } }
+@media (min-width: 1100px) { .usage-cards { grid-template-columns: repeat(7, 1fr); } }
 .usage-card {
     background: rgba(0,0,0,0.2);
     border: 1px solid var(--border);

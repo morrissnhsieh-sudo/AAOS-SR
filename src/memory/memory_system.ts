@@ -1,9 +1,9 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { Plugin } from '../plugins/plugin_engine';
+import { Plugin, ThinkingLevel } from '../plugins/plugin_engine';
 import { ToolCall } from '../tools/tool_dispatcher';
 
-export interface Session { id: string; user_id: string; last_active_at: Date; context_token_count: number; status: string; }
+export interface Session { id: string; user_id: string; last_active_at: Date; context_token_count: number; status: string; thinking_level?: ThinkingLevel; }
 export interface Message { 
     id: string; 
     session_id: string; 

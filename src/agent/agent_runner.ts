@@ -3,7 +3,7 @@ import { InternalMessage } from '../auth/auth_manager';
 import { execute_tool, ToolCall, ToolResult, ToolResultMap, get_all_tool_definitions } from '../tools/tool_dispatcher';
 import { execute_with_acp_retry, AgentRunResult, AgentStage, StageInput, StageOutput, ACP_MAX_PIPELINE_STAGES, ACP_MAX_AGENT_ITERATIONS } from '../acp/acp_runtime';
 import { io_load_workspace_memory_files, io_append_message_to_session_log, io_initialize_session_log_file, io_load_session_history, append_validated_memory_fact, Session, Message } from '../memory/memory_system';
-import { LlmResponse, LlmPrompt, Plugin, pluginRegistry, load_plugins_from_config, initialize_plugin, get_active_provider, invoke_for_role, load_model_config } from '../plugins/plugin_engine';
+import { LlmResponse, LlmPrompt, Plugin, pluginRegistry, load_plugins_from_config, initialize_plugin, get_active_provider, invoke_for_role, load_model_config, thinking_level_to_budget, ThinkingLevel } from '../plugins/plugin_engine';
 import { io_list_installed_skills, io_load_active_skill_contents, assemble_skill_system_prompt_block } from '../skills/skill_manager';
 import { responseBus, ResponseEvent, InterimEvent, InterimType } from '../channel/response_bus';
 import * as fs from 'fs';
@@ -363,10 +363,14 @@ export async function start_agent_run(session: Session, message: InternalMessage
         await io_append_message_to_session_log(session.id, userMsg);
 
         let history: Message[] = [...safeHistory, userMsg];
+        // Resolve thinking budget from per-session level (default: auto = no budget injected)
+        const sessionThinkingLevel = (session.thinking_level ?? 'auto') as ThinkingLevel;
+        const thinkingBudget = thinking_level_to_budget(sessionThinkingLevel);
         let currentPrompt: LlmPrompt = {
             system: systemPrefix,
             messages: history,
-            tools: tools
+            tools: tools,
+            ...(thinkingBudget !== undefined ? { thinking_budget: thinkingBudget } : {}),
         };
 
         let finalResponse = '';

@@ -45,6 +45,15 @@
                         </select>
                         <span id="modelSwitchStatus" class="model-switch-status"></span>
                         <button id="agentModelsToggle" class="btn-models-toggle" title="Per-agent model settings">⚙️ Agent Models</button>
+                        <div class="thinking-level-group" id="thinkingLevelGroup" title="Thinking depth for this conversation">
+                            <span class="model-label">Think</span>
+                            <div class="thinking-btns">
+                                <button class="thinking-btn active" data-level="auto">Auto</button>
+                                <button class="thinking-btn" data-level="low">Low</button>
+                                <button class="thinking-btn" data-level="medium">Med</button>
+                                <button class="thinking-btn" data-level="high">High</button>
+                            </div>
+                        </div>
                     </div>
                 </header>
                 <div id="agentModelsPanel" class="agent-models-panel" style="display:none">
@@ -261,6 +270,7 @@
                         <div class="usage-card"><div class="uc-label">Total Tokens</div><div class="uc-value" id="uc-tokens">—</div></div>
                         <div class="usage-card"><div class="uc-label">Input Tokens</div><div class="uc-value" id="uc-input">—</div></div>
                         <div class="usage-card"><div class="uc-label">Output Tokens</div><div class="uc-value" id="uc-output">—</div></div>
+                        <div class="usage-card"><div class="uc-label">Thinking Tokens</div><div class="uc-value" id="uc-thinking">—</div></div>
                         <div class="usage-card"><div class="uc-label">LLM Calls</div><div class="uc-value" id="uc-calls">—</div></div>
                         <div class="usage-card"><div class="uc-label">Avg Cost/Call</div><div class="uc-value" id="uc-avg">—</div></div>
                     </div>

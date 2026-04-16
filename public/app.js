@@ -28,6 +28,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // --- Auth & WebSocket ---
     let ws, userToken = '';
+    let currentThinkingLevel = 'auto';  // per-conversation thinking level
     try {
         const res = await fetch('/auth/ui-token');
         userToken = (await res.json()).token;
@@ -72,6 +73,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         };
     }
     connect();
+
+    // --- Thinking Level Button Group ---
+    document.getElementById('thinkingLevelGroup').addEventListener('click', e => {
+        const btn = e.target.closest('.thinking-btn');
+        if (!btn) return;
+        currentThinkingLevel = btn.dataset.level;
+        document.querySelectorAll('.thinking-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+    });
 
     // --- File Attachment ---
     const attachBtn  = document.getElementById('attachBtn');
@@ -185,7 +195,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Show user message with optional file badge
         addUserMessage(text, att);
 
-        const wsMsg = { request_id: crypto.randomUUID(), type: 'message', content: text };
+        const wsMsg = { request_id: crypto.randomUUID(), type: 'message', content: text, thinking_level: currentThinkingLevel };
         if (att) wsMsg.attachment = { name: att.name, filename: att.filename, path: att.path, webPath: att.webPath, size: att.size, mime: att.mime, isImage: att.isImage, isVideo: att.isVideo };
         ws.send(JSON.stringify(wsMsg));
         showTypingIndicator();
@@ -950,9 +960,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             // Summary cards
             document.getElementById('uc-cost').textContent   = formatCost(s.total_cost_usd);
             document.getElementById('uc-tokens').textContent = formatNum(s.total_tokens);
-            document.getElementById('uc-input').textContent  = formatNum(s.total_input_tokens);
-            document.getElementById('uc-output').textContent = formatNum(s.total_output_tokens);
-            document.getElementById('uc-calls').textContent  = s.call_count;
+            document.getElementById('uc-input').textContent    = formatNum(s.total_input_tokens);
+            document.getElementById('uc-output').textContent   = formatNum(s.total_output_tokens);
+            document.getElementById('uc-thinking').textContent = formatNum(s.total_thinking_tokens ?? 0);
+            document.getElementById('uc-calls').textContent    = s.call_count;
             document.getElementById('uc-avg').textContent    = s.call_count ? formatCost(s.total_cost_usd / s.call_count) : '$0.000000';
 
             // Timeline chart

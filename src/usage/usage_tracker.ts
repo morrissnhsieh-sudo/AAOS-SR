@@ -34,6 +34,7 @@ export interface UsageRecord {
     total_tokens: number;
     cost_usd: number;
     activity?: string;        // optional human-readable label (e.g. first 60 chars of user message)
+    thinking_tokens?: number; // native model thinking/reasoning tokens (Claude 3.7 / Gemini 2.5)
 }
 
 export interface UsageSummary {
@@ -41,6 +42,7 @@ export interface UsageSummary {
     total_input_tokens: number;
     total_output_tokens: number;
     total_tokens: number;
+    total_thinking_tokens: number;
     call_count: number;
     by_role: Record<string, { cost_usd: number; total_tokens: number; call_count: number }>;
     by_model: Record<string, { cost_usd: number; total_tokens: number; call_count: number }>;
@@ -114,6 +116,7 @@ export function summarise_usage(records: UsageRecord[], bucketMs: number = 3600_
         total_input_tokens: 0,
         total_output_tokens: 0,
         total_tokens: 0,
+        total_thinking_tokens: 0,
         call_count: records.length,
         by_role: {},
         by_model: {},
@@ -123,10 +126,11 @@ export function summarise_usage(records: UsageRecord[], bucketMs: number = 3600_
     const timelineBuckets = new Map<string, { cost_usd: number; total_tokens: number; call_count: number }>();
 
     for (const r of records) {
-        summary.total_cost_usd      += r.cost_usd;
-        summary.total_input_tokens  += r.input_tokens;
-        summary.total_output_tokens += r.output_tokens;
-        summary.total_tokens        += r.total_tokens;
+        summary.total_cost_usd        += r.cost_usd;
+        summary.total_input_tokens    += r.input_tokens;
+        summary.total_output_tokens   += r.output_tokens;
+        summary.total_tokens          += r.total_tokens;
+        summary.total_thinking_tokens += r.thinking_tokens ?? 0;
 
         // By role
         if (!summary.by_role[r.role]) summary.by_role[r.role] = { cost_usd: 0, total_tokens: 0, call_count: 0 };

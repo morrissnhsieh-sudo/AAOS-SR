@@ -36,6 +36,19 @@ export type RoleModelConfig = Record<string, ModelAssignment>;
 export const AGENT_ROLES = ['chatbot', 'skill_builder', 'memory_extractor', 'wiki_compiler', 'thinker'] as const;
 export type AgentRole = typeof AGENT_ROLES[number];
 
+// ── Thinking levels ───────────────────────────────────────────────────────────
+export type ThinkingLevel = 'auto' | 'low' | 'medium' | 'high';
+export const THINKING_LEVEL_BUDGETS: Record<ThinkingLevel, number | undefined> = {
+    auto:   undefined,   // let the model decide (no budget injected)
+    low:    2_000,
+    medium: 8_000,
+    high:   16_000,
+};
+/** Returns the token budget for a given thinking level, or undefined for 'auto'. */
+export function thinking_level_to_budget(level: ThinkingLevel): number | undefined {
+    return THINKING_LEVEL_BUDGETS[level];
+}
+
 export const ROLE_LABELS: Record<string, string> = {
     chatbot:          'Chatbot',
     skill_builder:    'Skill Builder',
@@ -433,7 +446,7 @@ export async function invoke_for_role(role: string, prompt: LlmPrompt, activity?
 
     // Log token usage and cost
     if (response.usage) {
-        const { input_tokens, output_tokens, total_tokens } = response.usage;
+        const { input_tokens, output_tokens, total_tokens, thinking_tokens } = response.usage;
         const cost_usd = calculate_cost(provider, model, input_tokens, output_tokens);
         log_usage({
             timestamp: new Date().toISOString(),
@@ -445,8 +458,10 @@ export async function invoke_for_role(role: string, prompt: LlmPrompt, activity?
             total_tokens,
             cost_usd,
             activity,
+            thinking_tokens: thinking_tokens ?? 0,
         });
-        console.log(`[Usage] ${role} ${model}: ${total_tokens} tokens, $${cost_usd.toFixed(6)}`);
+        const thinkNote = thinking_tokens ? ` (🧠 ${thinking_tokens} thinking)` : '';
+        console.log(`[Usage] ${role} ${model}: ${total_tokens} tokens, $${cost_usd.toFixed(6)}${thinkNote}`);
     }
 
     return response;

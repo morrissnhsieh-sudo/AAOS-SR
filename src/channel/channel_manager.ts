@@ -5,10 +5,11 @@ import { WebSocket } from 'ws';
 import { validate_line_signature, validate_device_jwt, DeviceTokenPayload, InternalMessage, FileAttachment } from '../auth/auth_manager';
 import { start_agent_run } from '../agent/agent_runner';
 import { Session } from '../memory/memory_system';
+import { ThinkingLevel } from '../plugins/plugin_engine';
 import { responseBus, ResponseEvent, InterimEvent } from './response_bus';
 
 export interface LineEvent { type: string; replyToken?: string; message?: { text: string }; source: { userId: string } }
-export interface WsMessage { request_id: string; type: string; content: string; }
+export interface WsMessage { request_id: string; type: string; content: string; thinking_level?: ThinkingLevel; }
 export interface WsEvent { type: string; event: string; payload: unknown; }
 export interface WsResponse { request_id: string; type: string; content: string; status: string; }
 export interface ChannelAdapter { type: string; }
@@ -112,6 +113,8 @@ export function validate_ws_message_schema(msg: unknown): { valid: boolean; reas
 
 export function route_ws_message_to_session(msg: WsMessage, clientId: string): void {
     const session = get_or_create_session(CHANNEL_WS, clientId);
+    // Persist thinking level for the lifetime of this session (per-conversation)
+    if (msg.thinking_level) session.thinking_level = msg.thinking_level;
     const internalMsg: InternalMessage = {
         id: uuidv4(),
         session_id: session.id,
