@@ -303,6 +303,7 @@ export function register_native_tools(): void {
                 pathSep:         path.sep,
                 nodeVersion:     process.version,
                 pythonExe:       WINDOWS_PYTHON,  // correct Python executable to use with webcam_capture
+                workspace:       process.env.AAOS_WORKSPACE || path.join(os.homedir(), '.aaos'),  // active workspace — use this for all workspace-relative paths
                 snapshotsDir:    process.env.AAOS_SNAPSHOTS_DIR || path.join(os.tmpdir(), 'aaos_snapshots'),  // where webcam photos are saved
                 snapshotsUrl:    '/snapshots',   // web path to access saved photos
                 commandStyle:    isWin
