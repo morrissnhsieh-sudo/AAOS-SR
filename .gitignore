@@ -24,3 +24,10 @@ workspace/scripts/__pycache__/
 # ── Temp / build artifacts ────────────────────────────────────────────────────
 *.pma
 *.pyc
+*.png
+
+# ── Playwright MCP runtime logs ───────────────────────────────────────────────
+.playwright-mcp/
+
+# ── Accidental nested workspace ───────────────────────────────────────────────
+workspace/workspace/
