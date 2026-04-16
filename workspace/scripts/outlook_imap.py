@@ -189,8 +189,8 @@ def main():
                         help="Action to perform")
     parser.add_argument("args", nargs="*",
                         help="Positional arguments for the command")
-    parser.add_argument("--service", default="outlookimap",
-                        help="AAOS credential-manager service name (default: outlookimap)")
+    parser.add_argument("--service", default="outlook_imap",
+                        help="AAOS credential-manager service name (default: outlook_imap)")
     opts = parser.parse_args()
 
     try:
@@ -234,12 +234,23 @@ def main():
 
     except imaplib.IMAP4.error as e:
         err = str(e)
-        if "AUTHENTICATIONFAILED" in err.upper() or "LOGIN failed" in err.upper():
+        err_up = err.upper()
+        if "BASICAUTHBLOCKED" in err_up or "BASIC AUTH" in err_up:
             print(json.dumps({
-                "error": "Authentication failed",
+                "error": "Microsoft has blocked basic IMAP authentication for this account.",
+                "steps": [
+                    "1. Enable IMAP: outlook.live.com → Settings → Mail → Sync email → IMAP On",
+                    "2. Enable 2FA: account.microsoft.com/security → Two-step verification",
+                    "3. Create App Password: account.microsoft.com/security → Advanced security → App passwords",
+                    f"4. Re-save credentials: credentials_save(service='{opts.service}', fields={{email:'...', password:'<16-char app password>'}})",
+                    "5. If still blocked: account needs OAuth 2.0 IMAP (ask AAOS to implement it)"
+                ]
+            }))
+        elif "AUTHENTICATIONFAILED" in err_up or "LOGIN failed" in err_up:
+            print(json.dumps({
+                "error": "Authentication failed — wrong App Password.",
                 "hint": (
-                    "Outlook IMAP requires a Microsoft App Password. "
-                    "Create one at: https://account.microsoft.com/security "
+                    "Create a new App Password at: account.microsoft.com/security "
                     "→ Advanced security options → App passwords. "
                     f"Then re-save: credentials_save(service='{opts.service}', "
                     "fields={email:'...', password:'<app_password>'})"

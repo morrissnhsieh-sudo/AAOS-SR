@@ -55,22 +55,22 @@ sys_info()  → use pythonExe field
 
 **Read unread emails (N = number to fetch):**
 ```
-bash_exec: "{pythonExe}" "{WORKSPACE}/scripts/outlook_imap.py" unread {N} --service outlookimap
+bash_exec: "{pythonExe}" "{WORKSPACE}/scripts/outlook_imap.py" unread {N} --service outlook_imap
 ```
 
 **Search emails:**
 ```
-bash_exec: "{pythonExe}" "{WORKSPACE}/scripts/outlook_imap.py" search "FROM \"someone@example.com\"" {N} --service outlookimap
+bash_exec: "{pythonExe}" "{WORKSPACE}/scripts/outlook_imap.py" search "FROM \"someone@example.com\"" {N} --service outlook_imap
 ```
 
 **Read a specific email by UID:**
 ```
-bash_exec: "{pythonExe}" "{WORKSPACE}/scripts/outlook_imap.py" read {uid} --service outlookimap
+bash_exec: "{pythonExe}" "{WORKSPACE}/scripts/outlook_imap.py" read {uid} --service outlook_imap
 ```
 
 **Send an email:**
 ```
-bash_exec: "{pythonExe}" "{WORKSPACE}/scripts/outlook_imap.py" send "{to}" "{subject}" "{body}" --service outlookimap
+bash_exec: "{pythonExe}" "{WORKSPACE}/scripts/outlook_imap.py" send "{to}" "{subject}" "{body}" --service outlook_imap
 ```
 
 > ⚠️ NEVER pass email address or password as command-line arguments.

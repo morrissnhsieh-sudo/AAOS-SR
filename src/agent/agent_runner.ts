@@ -396,6 +396,192 @@ Respond ONLY with compact valid JSON — no markdown fences:
     }
 }
 
+/**
+ * Stage 2b — Replanner
+ * Produces a revised execution plan when the first attempt fails verification.
+ * Receives the failed plan and the list of issues reported by the verifier.
+ */
+async function run_replan_stage(
+    intake: IntakeResult,
+    failedPlan: PlannerResult,
+    failureReasons: string[],
+    toolNames: string[],
+    activity: string
+): Promise<PlannerResult> {
+    const FALLBACK: PlannerResult = {
+        plan_summary: `Retry: ${intake.clarified_goal}`,
+        steps: intake.sub_tasks.length
+            ? intake.sub_tasks.map((t, i) => ({ order: i + 1, action: t, expected_output: 'completed' }))
+            : [{ order: 1, action: intake.clarified_goal, expected_output: 'task complete' }],
+    };
+    try {
+        const prompt: LlmPrompt = {
+            system: `You are a Replanner Agent. A previous execution plan failed verification.
+Produce a REVISED execution plan that specifically addresses the reported issues.
+Available tools: ${toolNames.slice(0, 30).join(', ')}
+
+Respond ONLY with compact valid JSON — no markdown fences:
+{"plan_summary":"brief summary","steps":[{"order":1,"action":"what to do","tool":"tool_name_or_null","expected_output":"success criterion"}]}`,
+            messages: [{
+                role: 'user',
+                content: [
+                    `Goal: ${intake.clarified_goal}`,
+                    ``,
+                    `Failed plan summary: ${failedPlan.plan_summary}`,
+                    `Failed steps:`,
+                    failedPlan.steps.map(s => `  ${s.order}. ${s.action} → ${s.expected_output}`).join('\n'),
+                    ``,
+                    `Verification failures:`,
+                    failureReasons.map(r => `  - ${r}`).join('\n'),
+                    ``,
+                    `Produce a revised plan that avoids these failures.`,
+                ].join('\n'),
+            }],
+        };
+        const res = await invoke_for_role('planner', prompt, activity);
+        const raw = (res.text || '{}').replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+        const parsed = JSON.parse(raw) as PlannerResult;
+        return { ...FALLBACK, ...parsed };
+    } catch (e: any) {
+        console.warn(`[Pipeline] Replanner failed — using fallback plan: ${e.message}`);
+        return FALLBACK;
+    }
+}
+
+/**
+ * Stage 3 — Executor Loop
+ * Runs the LLM+tool execution loop until a final text response is produced
+ * or the iteration cap is hit. Returns the final response text and updated history.
+ */
+async function run_executor_loop(
+    session: Session,
+    initialHistory: Message[],
+    pipelineSystem: string,
+    planBlock: string,
+    tools: any[],
+    thinkingBudget: number | undefined,
+    activity: string,
+    memCtx: { heartbeat: string; boot: string; memory: string }
+): Promise<{ finalResponse: string; history: Message[] }> {
+    let currentPrompt: LlmPrompt = {
+        system: pipelineSystem,
+        messages: initialHistory,
+        tools: tools,
+        ...(thinkingBudget !== undefined ? { thinking_budget: thinkingBudget } : {}),
+    };
+
+    let finalResponse = '';
+    let iterCount = 0;
+    let lastToolSig = '';
+    let lastPartialText = '';
+    let history = initialHistory;
+
+    while (iterCount < ACP_MAX_AGENT_ITERATIONS) {
+        iterCount++;
+        const res = await execute_with_acp_retry(async () => {
+            console.log(`[Agent] Step ${iterCount}/${ACP_MAX_AGENT_ITERATIONS} — invoking chatbot model...`);
+            return await invoke_for_role('chatbot', currentPrompt, activity);
+        }, 3);
+
+        if (res.tools && res.tools.length > 0) {
+            // Stuck-loop guard: same tool signatures twice in a row means the LLM is spinning
+            const sig = JSON.stringify(res.tools.map((t: any) => ({ n: t.name, a: t.args })));
+            if (sig === lastToolSig) {
+                console.warn(`[Agent] Identical tool calls at step ${iterCount} — breaking to avoid infinite loop.`);
+                finalResponse = lastPartialText ||
+                    'I reached a point where I was repeating the same steps. Please rephrase or provide more context.';
+                const stuckMsg: Message = {
+                    id: uuidv4(), session_id: session.id, role: 'assistant',
+                    content: finalResponse, created_at: new Date(), token_count: finalResponse.length
+                };
+                await io_append_message_to_session_log(session.id, stuckMsg);
+                break;
+            }
+            lastToolSig = sig;
+            lastPartialText = res.text || '';
+
+            // Emit interim events so the UI can show thinking + steps in real-time
+            for (const toolCall of res.tools) {
+                if (toolCall.name === 'think') {
+                    emit_interim(session, 'thinking', '💭 Thinking', toolCall.args?.reasoning || toolCall.args?.thought || '');
+                } else {
+                    const callSummary = summarise_tool_call(toolCall.name, toolCall.args);
+                    emit_interim(session, 'step', `⚙️ ${toolCall.name}`, callSummary);
+                }
+            }
+
+            const assistantMsg: Message = {
+                id: uuidv4(),
+                session_id: session.id,
+                role: 'assistant',
+                content: res.text || '',
+                tool_calls: res.tools,
+                created_at: new Date(),
+                token_count: (res.text || '').length
+            };
+            history.push(assistantMsg);
+            await io_append_message_to_session_log(session.id, assistantMsg);
+
+            const toolResults = await dispatch_tool_calls_parallel(res.tools);
+
+            // Emit result events after execution so the UI updates with outcomes
+            for (let i = 0; i < toolResults.length; i++) {
+                const tName = res.tools[i].name;
+                if (tName !== 'think') {
+                    const resultSummary = summarise_tool_result(tName, toolResults[i].result);
+                    if (resultSummary) emit_interim(session, 'result', `✓ ${tName}`, resultSummary);
+                }
+            }
+
+            history = inject_tool_results_into_context(history, res.tools, toolResults);
+
+            for (let i = 0; i < toolResults.length; i++) {
+                const trMsg = build_tool_result_message(toolResults[i], res.tools[i]);
+                await io_append_message_to_session_log(session.id, trMsg);
+            }
+
+            // Hot-reload skills into system prompt if build_skill was just called.
+            const builtSkill = res.tools.some((t: any) => t.name === 'build_skill');
+            if (builtSkill) {
+                const refreshedSkills = io_list_installed_skills().filter(s => s.status === 'enabled');
+                const refreshedBlock = assemble_skill_system_prompt_block(io_load_active_skill_contents(refreshedSkills));
+                const baseRefreshed = build_system_context_prefix(
+                    memCtx.heartbeat || null, memCtx.boot || null, memCtx.memory || null, refreshedBlock
+                );
+                const refreshedSystem = planBlock ? baseRefreshed + planBlock : baseRefreshed;
+                currentPrompt = { ...currentPrompt, system: refreshedSystem, messages: history };
+                console.log(`[Agent] Skills hot-reloaded after build_skill call.`);
+            } else {
+                currentPrompt = { ...currentPrompt, messages: history };
+            }
+        } else {
+            finalResponse = res.text || 'No response generated.';
+            const assistantMsg: Message = {
+                id: uuidv4(), session_id: session.id, role: 'assistant',
+                content: finalResponse, created_at: new Date(), token_count: finalResponse.length
+            };
+            history.push(assistantMsg);
+            await io_append_message_to_session_log(session.id, assistantMsg);
+            console.log(`[Agent] Final reply (first 200): ${finalResponse.slice(0, 200).replace(/\n/g, '↵')}`);
+            break;
+        }
+    }
+
+    // Hit the iteration cap without a clean text exit
+    if (!finalResponse) {
+        finalResponse = lastPartialText ||
+            `Task required more than ${ACP_MAX_AGENT_ITERATIONS} steps and was stopped. Try breaking it into smaller parts.`;
+        const capMsg: Message = {
+            id: uuidv4(), session_id: session.id, role: 'assistant',
+            content: finalResponse, created_at: new Date(), token_count: finalResponse.length
+        };
+        await io_append_message_to_session_log(session.id, capMsg);
+        console.warn(`[Agent] Hit iteration cap (${ACP_MAX_AGENT_ITERATIONS} steps).`);
+    }
+
+    return { finalResponse, history };
+}
+
 export async function start_agent_run(session: Session, message: InternalMessage): Promise<AgentRunResult> {
     const runId = uuidv4();
     runStates.set(runId, { status: 'running' });
@@ -489,6 +675,7 @@ export async function start_agent_run(session: Session, message: InternalMessage
 
         let planBlock = '';
         let pipelineSystem = systemPrefix;
+        let planResult: PlannerResult | null = null;
 
         if (!intakeResult.is_simple) {
             emit_interim(session, 'result', '📥 Intake',
@@ -496,7 +683,7 @@ export async function start_agent_run(session: Session, message: InternalMessage
 
             // ── Pipeline Stage 2: Planner ────────────────────────────────────
             emit_interim(session, 'step', '📋 Planner', 'Sequencing steps...');
-            const planResult = await run_planner_stage(intakeResult, tools.map(t => t.name), activity);
+            planResult = await run_planner_stage(intakeResult, tools.map(t => t.name), activity);
             planBlock = [
                 '\n## ACTIVE TASK PLAN (follow these steps in order)',
                 `Goal: ${intakeResult.clarified_goal}`,
@@ -512,136 +699,94 @@ export async function start_agent_run(session: Session, message: InternalMessage
             emit_interim(session, 'result', '📥 Intake', 'Conversational — responding directly');
         }
 
-        // ── Pipeline Stage 3: Executor ───────────────────────────────────────
-        let currentPrompt: LlmPrompt = {
-            system: pipelineSystem,
-            messages: history,
-            tools: tools,
-            ...(thinkingBudget !== undefined ? { thinking_budget: thinkingBudget } : {}),
-        };
+        // ── Pipeline Stages 3 + 4: Execute → Verify (with one replan retry) ─
+        //
+        //  [Plan] → [Execute] → [Verify: PASS] → done
+        //                  ↓
+        //           [Verify: FAIL, replanned=false]
+        //                  ↓
+        //    set replanned=true, pass failure_reason
+        //                  ↓
+        //           [Replan] → [Execute] → [Verify: PASS] → done
+        //                                ↓
+        //                         [Verify: FAIL, replanned=true]
+        //                                ↓
+        //                         escalate to user
+        // ─────────────────────────────────────────────────────────────────────
+        let verifiedResponse = '';
 
-        let finalResponse = '';
-        let iterCount = 0;
-        let lastToolSig = '';   // detects identical back-to-back tool calls (stuck loop)
-        let lastPartialText = '';
-
-        while (iterCount < ACP_MAX_AGENT_ITERATIONS) {
-            iterCount++;
-            const res = await execute_with_acp_retry(async () => {
-                console.log(`[Agent] Step ${iterCount}/${ACP_MAX_AGENT_ITERATIONS} — invoking chatbot model...`);
-                return await invoke_for_role('chatbot', currentPrompt, activity);
-            }, 3);
-
-            if (res.tools && res.tools.length > 0) {
-                // Stuck-loop guard: same tool signatures twice in a row means the LLM is spinning
-                const sig = JSON.stringify(res.tools.map((t: any) => ({ n: t.name, a: t.args })));
-                if (sig === lastToolSig) {
-                    console.warn(`[Agent] Identical tool calls at step ${iterCount} — breaking to avoid infinite loop.`);
-                    finalResponse = lastPartialText ||
-                        'I reached a point where I was repeating the same steps. Please rephrase or provide more context.';
-                    const stuckMsg: Message = {
-                        id: uuidv4(), session_id: session.id, role: 'assistant',
-                        content: finalResponse, created_at: new Date(), token_count: finalResponse.length
-                    };
-                    await io_append_message_to_session_log(session.id, stuckMsg);
-                    break;
-                }
-                lastToolSig = sig;
-                lastPartialText = res.text || '';
-
-                // Emit interim events so the UI can show thinking + steps in real-time
-                for (const toolCall of res.tools) {
-                    if (toolCall.name === 'think') {
-                        emit_interim(session, 'thinking', '💭 Thinking', toolCall.args?.reasoning || toolCall.args?.thought || '');
-                    } else {
-                        const callSummary = summarise_tool_call(toolCall.name, toolCall.args);
-                        emit_interim(session, 'step', `⚙️ ${toolCall.name}`, callSummary);
-                    }
-                }
-
-                const assistantMsg: Message = {
-                    id: uuidv4(),
-                    session_id: session.id,
-                    role: 'assistant',
-                    content: res.text || '',
-                    tool_calls: res.tools,
-                    created_at: new Date(),
-                    token_count: (res.text || '').length
-                };
-                history.push(assistantMsg);
-                await io_append_message_to_session_log(session.id, assistantMsg);
-
-                const toolResults = await dispatch_tool_calls_parallel(res.tools);
-
-                // Emit result events after execution so the UI updates with outcomes
-                for (let i = 0; i < toolResults.length; i++) {
-                    const tName = res.tools[i].name;
-                    if (tName !== 'think') {
-                        const resultSummary = summarise_tool_result(tName, toolResults[i].result);
-                        if (resultSummary) emit_interim(session, 'result', `✓ ${tName}`, resultSummary);
-                    }
-                }
-
-                history = inject_tool_results_into_context(history, res.tools, toolResults);
-
-                for (let i = 0; i < toolResults.length; i++) {
-                    const trMsg = build_tool_result_message(toolResults[i], res.tools[i]);
-                    await io_append_message_to_session_log(session.id, trMsg);
-                }
-
-                // Hot-reload skills into system prompt if build_skill was just called.
-                // This lets the LLM use the new skill's instructions in the same run
-                // rather than waiting for the next conversation turn.
-                const builtSkill = res.tools.some((t: any) => t.name === 'build_skill');
-                if (builtSkill) {
-                    const refreshedSkills = io_list_installed_skills().filter(s => s.status === 'enabled');
-                    const refreshedBlock = assemble_skill_system_prompt_block(io_load_active_skill_contents(refreshedSkills));
-                    const baseRefreshed = build_system_context_prefix(
-                        memCtx.heartbeat || null, memCtx.boot || null, memCtx.memory || null, refreshedBlock
-                    );
-                    // Re-apply plan block if present so pipeline context survives skill hot-reload
-                    const refreshedSystem = planBlock ? baseRefreshed + planBlock : baseRefreshed;
-                    currentPrompt = { ...currentPrompt, system: refreshedSystem, messages: history };
-                    console.log(`[Agent] Skills hot-reloaded after build_skill call.`);
-                } else {
-                    currentPrompt = { ...currentPrompt, messages: history };
-                }
-            } else {
-                finalResponse = res.text || 'No response generated.';
-                const assistantMsg: Message = {
-                    id: uuidv4(), session_id: session.id, role: 'assistant',
-                    content: finalResponse, created_at: new Date(), token_count: finalResponse.length
-                };
-                history.push(assistantMsg);
-                await io_append_message_to_session_log(session.id, assistantMsg);
-                // Log first 200 chars so we can see what the LLM actually output
-                console.log(`[Agent] Final reply (first 200): ${finalResponse.slice(0, 200).replace(/\n/g, '↵')}`);
-                break;
-            }
-        }
-
-        // Hit the iteration cap without a clean text exit
-        if (!finalResponse) {
-            finalResponse = lastPartialText ||
-                `Task required more than ${ACP_MAX_AGENT_ITERATIONS} steps and was stopped. Try breaking it into smaller parts.`;
-            const capMsg: Message = {
-                id: uuidv4(), session_id: session.id, role: 'assistant',
-                content: finalResponse, created_at: new Date(), token_count: finalResponse.length
-            };
-            await io_append_message_to_session_log(session.id, capMsg);
-            console.warn(`[Agent] Run ${runId} hit iteration cap (${ACP_MAX_AGENT_ITERATIONS} steps).`);
-        }
-
-        // ── Pipeline Stage 4: Verifier ───────────────────────────────────────
-        let verifiedResponse = finalResponse;
-        if (!intakeResult.is_simple && finalResponse) {
+        if (!intakeResult.is_simple) {
+            // ── First attempt ─────────────────────────────────────────────────
+            const exec1 = await run_executor_loop(
+                session, history, pipelineSystem, planBlock, tools, thinkingBudget, activity, memCtx
+            );
             emit_interim(session, 'step', '✅ Verifier', 'Checking output against original goal...');
-            const verifyResult = await run_verifier_stage(intakeResult.clarified_goal, finalResponse, activity);
-            const scoreLabel = verifyResult.passed
-                ? `Score ${verifyResult.score}/10 — goal achieved`
-                : `Score ${verifyResult.score}/10 — ${verifyResult.issues.slice(0, 2).join('; ')}`;
-            emit_interim(session, 'result', '✅ Verifier', scoreLabel);
-            verifiedResponse = verifyResult.final_answer || finalResponse;
+            const verify1 = await run_verifier_stage(intakeResult.clarified_goal, exec1.finalResponse, activity);
+            emit_interim(session, 'result', '✅ Verifier',
+                verify1.passed
+                    ? `Score ${verify1.score}/10 — goal achieved`
+                    : `Score ${verify1.score}/10 — ${verify1.issues.slice(0, 2).join('; ')}`);
+
+            if (verify1.passed) {
+                // ✅ First attempt passed — done
+                verifiedResponse = verify1.final_answer || exec1.finalResponse;
+            } else {
+                // ❌ First attempt failed — replan and retry once
+                emit_interim(session, 'step', '🔄 Replanner', 'Revising plan based on failure...');
+                const replanResult = await run_replan_stage(
+                    intakeResult, planResult!, verify1.issues, tools.map(t => t.name), activity
+                );
+                const replanBlock = [
+                    '\n## REVISED TASK PLAN (previous attempt failed — follow this revised plan)',
+                    `Goal: ${intakeResult.clarified_goal}`,
+                    replanResult.steps.map(s =>
+                        `${s.order}. ${s.action}${s.tool ? ` [tool: ${s.tool}]` : ''} → ${s.expected_output}`
+                    ).join('\n'),
+                    '\nMark each step complete before moving to the next.\n',
+                ].join('\n');
+                const replanSystem = systemPrefix + replanBlock;
+                emit_interim(session, 'result', '🔄 Replanner',
+                    `${replanResult.steps.length} revised step(s): ${replanResult.plan_summary}`);
+
+                // ── Second attempt with revised plan ──────────────────────────
+                const exec2 = await run_executor_loop(
+                    session, exec1.history, replanSystem, replanBlock, tools, thinkingBudget, activity, memCtx
+                );
+                emit_interim(session, 'step', '✅ Verifier', 'Re-checking revised output...');
+                const verify2 = await run_verifier_stage(intakeResult.clarified_goal, exec2.finalResponse, activity);
+                emit_interim(session, 'result', '✅ Verifier',
+                    verify2.passed
+                        ? `Score ${verify2.score}/10 — goal achieved after replan`
+                        : `Score ${verify2.score}/10 — could not resolve: ${verify2.issues.slice(0, 2).join('; ')}`);
+
+                if (verify2.passed) {
+                    // ✅ Second attempt passed after replan — done
+                    verifiedResponse = verify2.final_answer || exec2.finalResponse;
+                } else {
+                    // ❌ Second attempt also failed — escalate to user
+                    verifiedResponse = [
+                        `⚠️ I was unable to fully complete this task even after replanning.`,
+                        ``,
+                        `**Goal:** ${intakeResult.clarified_goal}`,
+                        ``,
+                        `**Remaining issues:**`,
+                        verify2.issues.map(i => `- ${i}`).join('\n'),
+                        ``,
+                        `**Best result I could produce:**`,
+                        exec2.finalResponse,
+                        ``,
+                        `Please review the issues above and clarify your request or provide additional context.`,
+                    ].join('\n');
+                    emit_interim(session, 'result', '⚠️ Escalated',
+                        'Could not satisfy goal after replan — escalating to you');
+                }
+            }
+        } else {
+            // Simple / conversational task — executor only, no verify/replan overhead
+            const exec = await run_executor_loop(
+                session, history, pipelineSystem, planBlock, tools, thinkingBudget, activity, memCtx
+            );
+            verifiedResponse = exec.finalResponse;
         }
 
         // ── Pipeline Stage 5: Memory Update (emit hint — actual write below) ─
@@ -670,7 +815,7 @@ export async function start_agent_run(session: Session, message: InternalMessage
         extract_and_persist_memory_facts(message.content, verifiedResponse, workspace)
             .catch(e => console.warn(`[Memory] Background extraction error: ${e.message}`));
 
-        return { finalResponse };
+        return { finalResponse: verifiedResponse };
     } catch (e: any) {
         // ── Classify the error and deliver a human-readable message to the chat ──
         const errMsg = build_llm_error_message(e);
