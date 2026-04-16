@@ -1,111 +1,95 @@
 ---
 name: outlook
-description: Read, search, and send Outlook / Office 365 emails using IMAP. Credentials are read securely from Windows Credential Manager — never passed on the command line.
-allowed-tools: bash_exec sys_info credentials_read credentials_save
-version: 3.1.0
+description: Read, search, and send Outlook / Office 365 emails via Playwright browser automation. First-time use opens a browser for a normal Microsoft login — after that, fully automatic forever. No App Password, no Azure setup.
+allowed-tools: bash_exec sys_info
+version: 5.1.0
 ---
 
-# Outlook / Office 365 Skill — v3.1.0
+# Outlook / Office 365 Skill — v5.1.0
 
-## Overview
+## How authentication works
 
-Read and send Outlook email using **IMAP/SMTP**.
-The script reads credentials from Windows Credential Manager internally — the password is **never** passed as a CLI argument.
+- **First time only:** A browser window opens. The user logs in with their
+  normal Microsoft email and password — exactly like visiting outlook.com.
+  Nothing else is needed. Takes about 30 seconds.
+- **Every time after:** Fully silent and headless. No user action ever again.
 
-> ⚠️ **SERVICE NAME IS `outlookimap` (no underscore) — use this exact string in every step below.**
-
----
-
-## Step 1 — Check credentials
-
-```
-credentials_read(service="outlookimap")
-```
-
-- `found: true` → proceed to Step 3.
-- `found: false` → Step 2 (one-time setup).
+> No App Password. No Azure portal. No API keys. No codes. Just a normal
+> browser login once, then fully automatic forever.
 
 ---
 
-## Step 2 — One-time setup (only if credentials not found)
+## IMPORTANT — Do NOT use IMAP or credentials_read for Outlook
 
-Tell the user:
-
-> "Outlook IMAP needs a Microsoft App Password.
->
-> Please:
-> 1. Go to **https://account.microsoft.com/security**
-> 2. Click **Advanced security options**
-> 3. Under **App passwords**, click **Create a new app password**
-> 4. Copy the generated password
->
-> Tell me your Outlook email address and that app password — you will never be asked again."
-
-After user replies:
-```
-credentials_save(service="outlookimap", fields={"email": "<their_email>", "password": "<app_password>"})
-```
-
-Then verify the save succeeded:
-```
-credentials_read(service="outlookimap")   → must return found: true
-```
+IMAP basic auth is permanently blocked by Microsoft since 2023.
+App Passwords require complex 2FA setup.
+**The ONLY working method is Playwright browser automation below.**
 
 ---
 
-## Step 3 — Run the IMAP script
+## Step 1 — Get the Python executable
 
-Get the Python executable and workspace path:
 ```
-sys_info()  → use pythonExe and workspace fields
+sys_info()  →  note the pythonExe value (e.g. C:\Python314\python.exe)
 ```
 
-> ⚠️ **`--service outlookimap` (no underscore) must match the service name used in Steps 1 and 2.**
+The workspace path is already embedded in the commands below as `{WORKSPACE}`.
 
-**Read unread emails (N = number to fetch):**
+---
+
+## Step 2 — Run the script
+
+Use the `pythonExe` value from sys_info() in the commands below.
+
+**List 3 most recent emails:**
 ```
-bash_exec: "{pythonExe}" "{workspace}/scripts/outlook_imap.py" unread {N} --service outlookimap
+bash_exec: "<pythonExe>" "{WORKSPACE}/scripts/outlook_playwright.py" recent 3
+```
+
+**List latest N unread emails:**
+```
+bash_exec: "<pythonExe>" "{WORKSPACE}/scripts/outlook_playwright.py" unread <N>
 ```
 
 **Search emails:**
 ```
-bash_exec: "{pythonExe}" "{workspace}/scripts/outlook_imap.py" search "FROM \"someone@example.com\"" {N} --service outlookimap
+bash_exec: "<pythonExe>" "{WORKSPACE}/scripts/outlook_playwright.py" search "<query>" <N>
 ```
 
-**Read a specific email by UID:**
+**Read a specific email by index:**
 ```
-bash_exec: "{pythonExe}" "{workspace}/scripts/outlook_imap.py" read {uid} --service outlookimap
+bash_exec: "<pythonExe>" "{WORKSPACE}/scripts/outlook_playwright.py" read <index>
 ```
 
 **Send an email:**
 ```
-bash_exec: "{pythonExe}" "{workspace}/scripts/outlook_imap.py" send "{to}" "{subject}" "{body}" --service outlookimap
+bash_exec: "<pythonExe>" "{WORKSPACE}/scripts/outlook_playwright.py" send "<to>" "<subject>" "<body>"
 ```
 
-> ⚠️ NEVER pass email address or password as command-line arguments.
-> The script reads them from Windows Credential Manager via `--service`.
+---
+
+## Step 3 — First-time login handling
+
+If the JSON output contains `"status": "login_required"`, tell the user:
+
+> "A browser window has opened on your screen. Please log in with your
+> Microsoft email and password — exactly like logging into outlook.com.
+> You will never be asked again after this first login."
+
+The script polls silently and continues automatically once login is complete.
 
 ---
 
 ## Step 4 — Present results
 
-Parse JSON output and present clearly:
+Format and present the JSON emails clearly to the user:
+
 ```
-[1] From: Alice <alice@co.com>
+[1] From:    sender@example.com
     Subject: Meeting tomorrow
-    Date: Wed, 15 Apr 2026 09:00:00 +0800
+    Date:    2026/4/16 上午 09:39
     Preview: Hi, confirming the 10am meeting...
 ```
-
----
-
-## ⚠️ WHY BROWSER DOES NOT WORK FOR OUTLOOK
-
-Microsoft Outlook uses MSAL.js with `sessionStorage` for auth tokens.
-`sessionStorage` is **always cleared** when the browser process exits — auth cannot be persisted.
-`web_login` and `browser_setup` will ALWAYS fail for Outlook — do not attempt them.
-
-**IMAP with App Password is the ONLY reliable method for Outlook.**
 
 ---
 
@@ -113,10 +97,7 @@ Microsoft Outlook uses MSAL.js with `sessionStorage` for auth tokens.
 
 | Error | Fix |
 |-------|-----|
-| `No credentials found for service 'outlookimap'` | Run Step 2 (one-time setup) |
-| `No credentials found for service 'outlook_imap'` | Service name mismatch — re-save with the exact name `outlookimap` (no underscore) |
-| `Authentication failed` | Create/re-create App Password at account.microsoft.com/security |
-| `IMAP not enabled` | Outlook Settings → Mail → Sync email → toggle IMAP on |
-| `LOGIN failed` | Same as authentication failed — check App Password |
-| `BASICAUTHBLOCKED` | Enable 2FA on your Microsoft account, then create an App Password at account.microsoft.com/security → Advanced security options |
-| `keyring not installed` | Run: `{pythonExe} -m pip install keyring` in bash_exec |
+| `playwright not installed` | `bash_exec: <pythonExe> -m pip install playwright && <pythonExe> -m playwright install chromium` |
+| `Login timed out` | Run again — complete the browser login within 3 minutes |
+| `Could not find OWA search box` | OWA layout changed — try `recent 10` instead |
+| `Email index N not found` | Run `recent 10` first to see available indexes |

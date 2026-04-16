@@ -30,9 +30,13 @@ Read and follow `{WORKSPACE}/skills\gmail\SKILL.md` exactly.
 
 ---
 
-## For Outlook / Office 365 / outlook365 → use the `outlook` skill (IMAP)
+## For Outlook / Office 365 / outlook365 → use the `outlook` skill (Playwright)
 
-Read and follow `{WORKSPACE}/skills\outlook\SKILL.md` exactly.
+Read and follow `{WORKSPACE}/skills/outlook/SKILL.md` exactly.
 
-Primary method: IMAP via `outlook_imap.py` with a Microsoft App Password.
-Browser login is permanently impossible for Outlook (Microsoft MSAL uses sessionStorage which clears on every browser exit).
+Primary method: Playwright browser automation via `outlook_playwright.py`.
+First run opens a browser for a one-time normal login; all subsequent runs are fully automatic.
+**Do NOT use IMAP, App Password, or credentials_read/save for Outlook — those are obsolete.**
+**Do NOT say browser login is impossible for Outlook — it works via Playwright.**
+
+Alternatively, use the `outlook365` skill for full Graph API access (search, read, draft, send).

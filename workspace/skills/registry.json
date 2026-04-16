@@ -338,5 +338,13 @@
       "browser_snapshot",
       "browser_setup"
     ]
+  },
+  {
+    "id": "outlook365-skill-001",
+    "name": "outlook365",
+    "version": "1.0.0",
+    "status": "enabled",
+    "description": "Read, search, and send Outlook 365 emails via Microsoft Graph API (OAuth 2.0). Supports search, read full thread, create draft replies, and send emails.",
+    "skill_md_path": "skills/outlook365/SKILL.md"
   }
 ]
