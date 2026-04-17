@@ -13,6 +13,7 @@ import { generate_device_jwt } from './auth/auth_manager';
 import { io_list_installed_skills, io_disable_skill, io_receive_skill_install_request, io_load_active_skill_contents, Skill } from './skills/skill_manager';
 import { register_native_tools } from './tools/native_tools';
 import { register_iot_tools } from './tools/iot_tools';
+import { register_a2a_tools } from './tools/a2a_tools';
 import { register_wiki_tools, list_wiki_pages, read_wiki_page, ensure_wiki_structure } from './tools/wiki_tools';
 import { start_scheduler_engine, stop_scheduler_engine, activate_job, deactivate_job, run_job_now } from './scheduler/scheduler_engine';
 import { register_scheduler_tools } from './scheduler/scheduler_tools';
@@ -496,6 +497,7 @@ function onListening() {
     register_browser_setup_tool();
     console.log('Native tools registered: think, problem_solve, verify_solution, remember, credentials_read, web_login, browser_setup, web_fetch, file_read, file_write, file_list, file_search, bash_exec, build_skill, analyze_image, analyze_video, webcam_capture');
     register_iot_tools();
+    register_a2a_tools();
     register_wiki_tools();
     register_scheduler_tools();
     // Playwright MCP — browser automation tools (browser_navigate, browser_click, …)

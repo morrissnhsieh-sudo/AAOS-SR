@@ -129,6 +129,51 @@ const VOLATILE_FACT_PATTERNS: RegExp[] = [
 const MEMORY_MAX_FACTS = 60;
 const MEMORY_MAX_FACT_LENGTH = 250;
 
+// ── Retail memory namespaces ──────────────────────────────────────────────────
+//
+// Retail agents write structured facts using these key prefixes.
+// Fact format: "<namespace>/<store_id>[/<date>]: <content>"
+//
+// Instruction patterns (persist as persistent rules in MEMORY.md):
+//   "store TW-001 threshold for {sku} is {value}"
+//   "always alert {role} when congestion_score > {n}"
+//   "supplier for {category} is {supplier_id}"
+//
+// Fact patterns (persist as timestamped events):
+//   "{sku} was restocked at {time}"
+//   "LP alert raised for {alert_type} at {time}"
+//   "demand forecast accuracy for last week was {pct}%"
+//
+// Compaction priority (lowest = trimmed first when budget is exceeded):
+//   retail/events/**    → LOW priority (reconstructible from session JSONL logs)
+//   retail/performance/** → MEDIUM priority
+//   retail/config/**    → HIGH priority (rules that change infrequently)
+export const RETAIL_MEMORY_NAMESPACES = [
+    'retail/config',      // store config rules (thresholds, supplier overrides)
+    'retail/events',      // timestamped operational events (restock, LP alerts)
+    'retail/performance', // KPI snapshots per shift
+] as const;
+
+/** Returns true if a memory fact key belongs to the low-priority retail/events namespace. */
+export function is_retail_event_fact(fact: string): boolean {
+    return /^retail\/events\//i.test(fact);
+}
+
+/**
+ * Selects which MEMORY.md facts to trim first when approaching the cap.
+ * Priority order: retail/events first, then retail/performance, then other facts.
+ */
+export function sort_facts_for_eviction(facts: string[]): string[] {
+    const isEvent       = (f: string) => /^retail\/events\//i.test(f);
+    const isPerformance = (f: string) => /^retail\/performance\//i.test(f);
+    const evict = [
+        ...facts.filter(isEvent),
+        ...facts.filter(f => isPerformance(f) && !isEvent(f)),
+        ...facts.filter(f => !isEvent(f) && !isPerformance(f)),
+    ];
+    return evict;
+}
+
 /**
  * Validates a candidate memory fact against all safety rules.
  * Returns { ok: true } if the fact should be written, or { ok: false, reason } if rejected.
@@ -182,10 +227,22 @@ export function append_validated_memory_fact(workspace: string, fact: string): {
 
     try {
         const existing = fs.existsSync(memFile) ? fs.readFileSync(memFile, 'utf8') : '';
-        const count = existing.split('\n').filter(l => l.startsWith('- ')).length;
-        if (count >= MEMORY_MAX_FACTS) {
-            console.warn(`[Memory] Fact limit (${MEMORY_MAX_FACTS}) reached — rejected: "${fact.slice(0, 80)}"`);
-            return { ok: false, reason: `Memory is full (${MEMORY_MAX_FACTS} fact limit)` };
+        const lines = existing.split('\n').filter(l => l.startsWith('- '));
+        if (lines.length >= MEMORY_MAX_FACTS) {
+            // Evict the lowest-priority fact before writing the new one.
+            // retail/events facts are evicted first (reconstructible from session logs),
+            // then retail/performance, then general facts.
+            const evictionOrder = sort_facts_for_eviction(lines.map(l => l.slice(2).trim()));
+            const toEvict = evictionOrder[0];
+            if (!toEvict) {
+                console.warn(`[Memory] Fact limit (${MEMORY_MAX_FACTS}) reached — rejected: "${fact.slice(0, 80)}"`);
+                return { ok: false, reason: `Memory is full (${MEMORY_MAX_FACTS} fact limit)` };
+            }
+            const pruned = existing.split('\n')
+                .filter(l => !(l.startsWith('- ') && l.slice(2).trim() === toEvict))
+                .join('\n');
+            fs.writeFileSync(memFile, pruned, 'utf8');
+            console.log(`[Memory] Evicted low-priority fact to make room: "${toEvict.slice(0, 80)}"`);
         }
     } catch { /* file may not exist yet — count is 0 */ }
 
