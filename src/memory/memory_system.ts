@@ -26,7 +26,12 @@ export const SESSION_LOG_DIR = 'sessions';
 export const MEMORY_DIR = 'memory';
 export const WORKSPACE_DIR = 'workspace';
 
-function getWorkspace() { return process.env.AAOS_WORKSPACE || path.join(process.env.HOME || process.env.USERPROFILE || '', '.aaos-sr'); }
+
+function expand_tilde(p: string): string {
+    const home = process.env.USERPROFILE || process.env.HOME || require('os').homedir();
+    return p.startsWith('~') ? require('path').join(home, p.slice(1)) : p;
+}
+function getWorkspace() { return expand_tilde(process.env.AAOS_WORKSPACE || path.join(process.env.HOME || process.env.USERPROFILE || '', '.aaos-sr')); }
 
 /**
  * Sanitise a session ID for use as a filename.

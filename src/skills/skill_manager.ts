@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import * as os from 'os';
 import * as yaml from 'js-yaml';
 import { v4 as uuidv4 } from 'uuid';
 import { Request, Response } from 'express';
@@ -30,8 +31,14 @@ export interface Skill {
 export const SKILL_REGISTRY_FILE = 'skills/registry.json';
 export const SKILL_INSTALL_DIR = 'skills';
 
+function expand_tilde(p: string): string {
+    if (!p.startsWith('~')) return p;
+    const home = process.env.USERPROFILE || process.env.HOME || os.homedir();
+    return path.join(home, p.slice(1));
+}
+
 function getWorkspace(): string {
-    return process.env.AAOS_WORKSPACE || path.join(process.env.HOME || '', '.aaos-sr');
+    return expand_tilde(process.env.AAOS_WORKSPACE || path.join(process.env.HOME || os.homedir(), '.aaos-sr'));
 }
 
 export function io_read_skill_md(skillMdPath: string): string | null {

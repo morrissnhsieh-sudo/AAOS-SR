@@ -67,7 +67,7 @@ app.use(express.static('public'));
 
 // --- File Upload API ---
 const UPLOADS_DIR = path.resolve(
-    path.join(process.env.AAOS_WORKSPACE || path.join(process.env.USERPROFILE || process.env.HOME || '', '.aaos-sr'), 'uploads')
+    path.join(expand_tilde(process.env.AAOS_WORKSPACE || path.join(process.env.USERPROFILE || process.env.HOME || '', '.aaos-sr')), 'uploads')
 );
 fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 console.log(`[Uploads] Directory: ${UPLOADS_DIR}`);
@@ -282,9 +282,14 @@ app.get('/api/health', async (req, res) => {
 
 
 // --- Memory API ---
+
+function expand_tilde(p: string): string {
+    const home = process.env.USERPROFILE || process.env.HOME || require('os').homedir();
+    return p.startsWith('~') ? require('path').join(home, p.slice(1)) : p;
+}
 function getWorkspace() {
-    return process.env.AAOS_WORKSPACE ||
-        path.join(process.env.HOME || process.env.USERPROFILE || '', '.aaos-sr');
+    return expand_tilde(process.env.AAOS_WORKSPACE ||
+        path.join(process.env.HOME || process.env.USERPROFILE || '', '.aaos-sr'));
 }
 
 app.get('/api/memory', (req, res) => {

@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import * as os from 'os';
 import { invoke_for_role, LlmPrompt } from '../plugins/plugin_engine';
 import { Skill, SkillContent, io_save_skill_to_registry, io_list_installed_skills, parse_skill_md, validate_skill_not_already_installed, SKILL_INSTALL_DIR } from './skill_manager';
 import { v4 as uuidv4 } from 'uuid';
@@ -32,9 +33,14 @@ const AAOS_NATIVE_TOOLS = [
     'webcam_capture',
 ] as const;
 
+function expand_tilde(p: string): string {
+    if (!p.startsWith('~')) return p;
+    const home = process.env.USERPROFILE || process.env.HOME || os.homedir();
+    return path.join(home, p.slice(1));
+}
+
 function getWorkspace(): string {
-    return process.env.AAOS_WORKSPACE ||
-        path.join(process.env.HOME || process.env.USERPROFILE || '', '.aaos-sr');
+    return expand_tilde(process.env.AAOS_WORKSPACE || path.join(process.env.HOME || process.env.USERPROFILE || os.homedir(), '.aaos-sr'));
 }
 
 /**

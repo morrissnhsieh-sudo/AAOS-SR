@@ -23,8 +23,14 @@ export const SUBSYSTEM_PING_TIMEOUT_MS = 10000;
 
 let lastHealthResult: GatewayHealth | null = null;
 
+function expand_tilde(p: string): string {
+    if (!p.startsWith('~')) return p;
+    const home = process.env.USERPROFILE || process.env.HOME || os.homedir();
+    return path.join(home, p.slice(1));
+}
+
 function getWorkspace(): string {
-    return process.env.AAOS_WORKSPACE || path.join(os.homedir(), '.aaos-sr');
+    return expand_tilde(process.env.AAOS_WORKSPACE || path.join(os.homedir(), '.aaos-sr'));
 }
 
 /** Pings the filesystem memory subsystem */

@@ -33,9 +33,14 @@ interface A2ADelegateResult {
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
+function expand_tilde(p: string): string {
+    if (!p.startsWith('~')) return p;
+    const home = process.env.USERPROFILE || process.env.HOME || os.homedir();
+    return path.join(home, p.slice(1));
+}
+
 function get_workspace(): string {
-    return process.env.AAOS_WORKSPACE ||
-        path.join(os.homedir(), '.aaos-sr');
+    return expand_tilde(process.env.AAOS_WORKSPACE || path.join(os.homedir(), '.aaos-sr'));
 }
 
 function load_agent_registry(): A2AAgent[] {
