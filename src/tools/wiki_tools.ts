@@ -422,6 +422,24 @@ export function read_wiki_page(name: string): string | null {
     } catch { return null; }
 }
 
+export function delete_wiki_page(name: string): { ok: boolean; error?: string } {
+    if (!name || /\.\./.test(name)) return { ok: false, error: 'Invalid page name' };
+    const file = path.join(pages_dir(), `${name}.md`);
+    if (!fs.existsSync(file)) return { ok: false, error: `Page not found: ${name}` };
+    try {
+        fs.unlinkSync(file);
+        // Remove empty parent directories (up to pages/)
+        let dir = path.dirname(file);
+        while (dir !== pages_dir() && dir.startsWith(pages_dir())) {
+            try { fs.rmdirSync(dir); } catch { break; }
+            dir = path.dirname(dir);
+        }
+        return { ok: true };
+    } catch (e: any) {
+        return { ok: false, error: e.message };
+    }
+}
+
 function write_wiki_page(name: string, content: string): void {
     const file = path.join(pages_dir(), `${name}.md`);
     fs.mkdirSync(path.dirname(file), { recursive: true });

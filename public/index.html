@@ -150,6 +150,7 @@
                     </div>
                     <div class="wiki-header-actions">
                         <button id="wikiLintBtn" class="btn-small" title="Audit wiki for issues">🔍 Lint</button>
+                        <button id="wikiManageBtn" class="btn-small" title="Select and delete pages">⚙ Manage</button>
                         <button id="wikiRefreshBtn" class="btn-small">↻ Refresh</button>
                     </div>
                 </header>
@@ -172,6 +173,12 @@
                         <div class="wiki-sidebar">
                             <div class="wiki-search-wrap">
                                 <input type="text" id="wikiSearch" class="wiki-search" placeholder="🔍 Search wiki..." autocomplete="off">
+                            </div>
+                            <!-- Bulk delete bar — shown only in manage mode with selections -->
+                            <div id="wikiManageBar" class="wiki-manage-bar" style="display:none">
+                                <span class="wiki-selected-count">0 selected</span>
+                                <button id="wikiSelectAllBtn" class="btn-small">Select All</button>
+                                <button id="wikiDeleteSelectedBtn" class="btn-small btn-danger">🗑 Delete Selected</button>
                             </div>
                             <div id="wikiPageList" class="wiki-page-list">
                                 <div class="empty-state">Loading...</div>

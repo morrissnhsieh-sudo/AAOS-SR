@@ -760,6 +760,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     // --- Wiki ---
     let wikiPages = [];
     let wikiSearchTimeout = null;
+    let wikiManageMode = false;
+    let wikiSelected = new Set();
+    let wikiCurrentPage = null;
 
     async function loadWikiPages() {
         try {
@@ -775,6 +778,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const el = document.getElementById('wikiPageList');
         if (pages.length === 0) {
             el.innerHTML = '<div class="empty-state">No wiki pages yet.<br>Ingest a source above to get started.</div>';
+            updateManageBar();
             return;
         }
         // Group by prefix
@@ -787,25 +791,139 @@ document.addEventListener('DOMContentLoaded', async () => {
         const iconMap = { concepts: '💡', entities: '👤', topics: '🗂️', summaries: '📄', other: '📎' };
         let html = '';
         for (const [group, items] of Object.entries(groups)) {
+            const allInGroup = items.map(p => p.name);
+            const allChecked = wikiManageMode && allInGroup.every(n => wikiSelected.has(n));
             html += `<div class="wiki-group">
-                <div class="wiki-group-label">${iconMap[group] || '📁'} ${group} <span class="pill">${items.length}</span></div>`;
+                <div class="wiki-group-label">
+                    ${wikiManageMode ? `<input type="checkbox" class="wiki-group-check" data-group="${esc(group)}" ${allChecked ? 'checked' : ''} title="Select all in ${esc(group)}">` : ''}
+                    ${iconMap[group] || '📁'} ${group} <span class="pill">${items.length}</span>
+                </div>`;
             for (const p of items) {
                 const shortName = p.name.includes('/') ? p.name.split('/').slice(1).join('/') : p.name;
                 const kb = (p.size / 1024).toFixed(1);
-                html += `<div class="wiki-page-item" data-name="${esc(p.name)}" title="${esc(p.name)}">
+                const checked = wikiSelected.has(p.name) ? 'checked' : '';
+                const active = wikiCurrentPage === p.name ? 'active' : '';
+                html += `<div class="wiki-page-item ${active}" data-name="${esc(p.name)}" title="${esc(p.name)}">
+                    ${wikiManageMode ? `<input type="checkbox" class="wiki-item-check" data-name="${esc(p.name)}" ${checked} onclick="event.stopPropagation()">` : ''}
                     <span class="wiki-page-name">${esc(shortName)}</span>
                     <span class="wiki-page-meta">${kb}KB</span>
+                    ${wikiManageMode ? '' : `<button class="wiki-delete-btn" data-name="${esc(p.name)}" title="Delete page" onclick="event.stopPropagation()">🗑</button>`}
                 </div>`;
             }
             html += '</div>';
         }
         el.innerHTML = html;
+
+        // Page item click → load page (ignore manage-mode clicks on checkbox)
         el.querySelectorAll('.wiki-page-item').forEach(item => {
-            item.addEventListener('click', () => loadWikiPage(item.dataset.name));
+            item.addEventListener('click', (e) => {
+                if (wikiManageMode) {
+                    // Toggle checkbox on row click
+                    const cb = item.querySelector('.wiki-item-check');
+                    if (cb && e.target !== cb) cb.click();
+                } else {
+                    loadWikiPage(item.dataset.name);
+                }
+            });
         });
+
+        // Individual checkboxes
+        el.querySelectorAll('.wiki-item-check').forEach(cb => {
+            cb.addEventListener('change', () => {
+                if (cb.checked) wikiSelected.add(cb.dataset.name);
+                else wikiSelected.delete(cb.dataset.name);
+                updateManageBar();
+                renderWikiPageList(wikiPages.filter(p => {
+                    const q = document.getElementById('wikiSearch').value.trim().toLowerCase();
+                    return !q || p.name.toLowerCase().includes(q);
+                }));
+            });
+        });
+
+        // Group "select all" checkboxes
+        el.querySelectorAll('.wiki-group-check').forEach(cb => {
+            cb.addEventListener('change', () => {
+                const groupItems = wikiPages.filter(p => {
+                    const prefix = p.name.includes('/') ? p.name.split('/')[0] : 'other';
+                    return prefix === cb.dataset.group;
+                });
+                groupItems.forEach(p => cb.checked ? wikiSelected.add(p.name) : wikiSelected.delete(p.name));
+                updateManageBar();
+                renderWikiPageList(wikiPages.filter(p => {
+                    const q = document.getElementById('wikiSearch').value.trim().toLowerCase();
+                    return !q || p.name.toLowerCase().includes(q);
+                }));
+            });
+        });
+
+        // Inline delete buttons (non-manage mode)
+        el.querySelectorAll('.wiki-delete-btn').forEach(btn => {
+            btn.addEventListener('click', () => deleteWikiPage(btn.dataset.name));
+        });
+
+        updateManageBar();
+    }
+
+    function updateManageBar() {
+        const bar = document.getElementById('wikiManageBar');
+        const manageBtn = document.getElementById('wikiManageBtn');
+        if (!bar || !manageBtn) return;
+        if (wikiManageMode) {
+            manageBtn.textContent = 'Done';
+            manageBtn.classList.add('active');
+            bar.style.display = wikiSelected.size > 0 ? 'flex' : 'none';
+            const countEl = bar.querySelector('.wiki-selected-count');
+            if (countEl) countEl.textContent = `${wikiSelected.size} selected`;
+        } else {
+            manageBtn.textContent = '⚙ Manage';
+            manageBtn.classList.remove('active');
+            bar.style.display = 'none';
+            wikiSelected.clear();
+        }
+    }
+
+    async function deleteWikiPage(name, skipConfirm = false) {
+        if (!skipConfirm && !confirm(`Delete wiki page "${name}"?\nThis cannot be undone.`)) return;
+        try {
+            const res = await fetch(`/api/wiki/pages/${encodeURIComponent(name)}`, { method: 'DELETE' });
+            const data = await res.json();
+            if (!data.ok) { alert(`Failed to delete: ${data.error}`); return; }
+            // Clear content pane if this page was open
+            if (wikiCurrentPage === name) {
+                wikiCurrentPage = null;
+                document.getElementById('wikiContentArea').innerHTML =
+                    '<div class="wiki-placeholder"><div class="wiki-placeholder-icon">📖</div><p>Select a page</p></div>';
+            }
+            await loadWikiPages();
+        } catch (e) { alert(`Delete failed: ${e.message}`); }
+    }
+
+    async function deleteSelectedWikiPages() {
+        if (wikiSelected.size === 0) return;
+        const names = [...wikiSelected];
+        if (!confirm(`Delete ${names.length} page(s)?\n\n${names.join('\n')}\n\nThis cannot be undone.`)) return;
+        try {
+            const res = await fetch('/api/wiki/pages', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ names }),
+            });
+            const data = await res.json();
+            const failedNames = data.failed?.map(f => f.name) || [];
+            if (failedNames.length) alert(`Some deletions failed:\n${failedNames.join('\n')}`);
+            if (names.includes(wikiCurrentPage)) {
+                wikiCurrentPage = null;
+                document.getElementById('wikiContentArea').innerHTML =
+                    '<div class="wiki-placeholder"><div class="wiki-placeholder-icon">📖</div><p>Select a page</p></div>';
+            }
+            wikiSelected.clear();
+            wikiManageMode = false;
+            await loadWikiPages();
+        } catch (e) { alert(`Bulk delete failed: ${e.message}`); }
     }
 
     async function loadWikiPage(name) {
+        wikiCurrentPage = name;
         document.querySelectorAll('.wiki-page-item').forEach(el => el.classList.remove('active'));
         const item = document.querySelector(`.wiki-page-item[data-name="${CSS.escape(name)}"]`);
         if (item) item.classList.add('active');
@@ -813,14 +931,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         const contentArea = document.getElementById('wikiContentArea');
         contentArea.innerHTML = '<div class="wiki-loading">Loading...</div>';
         try {
-            const data = await (await fetch(`/api/wiki/pages/${name}`)).json();
+            const data = await (await fetch(`/api/wiki/pages/${encodeURIComponent(name)}`)).json();
             if (!data.content) throw new Error('Empty page');
             contentArea.innerHTML = `
                 <div class="wiki-page-header">
                     <span class="wiki-breadcrumb">${esc(name)}</span>
                     <span class="wiki-page-size">${(data.content.length/1024).toFixed(1)} KB</span>
+                    <button class="wiki-page-delete-btn btn-small btn-danger" data-name="${esc(name)}" title="Delete this page">🗑 Delete</button>
                 </div>
                 <div class="wiki-markdown">${renderWikiMarkdown(data.content)}</div>`;
+            contentArea.querySelector('.wiki-page-delete-btn')?.addEventListener('click', async (e) => {
+                await deleteWikiPage(e.target.dataset.name);
+            });
         } catch (e) {
             contentArea.innerHTML = `<div class="wiki-error">Failed to load page: ${esc(e.message)}</div>`;
         }
@@ -939,6 +1061,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     document.getElementById('wikiRefreshBtn').addEventListener('click', loadWikiPages);
+
+    document.getElementById('wikiManageBtn').addEventListener('click', () => {
+        wikiManageMode = !wikiManageMode;
+        if (!wikiManageMode) wikiSelected.clear();
+        const q = document.getElementById('wikiSearch').value.trim().toLowerCase();
+        renderWikiPageList(q ? wikiPages.filter(p => p.name.toLowerCase().includes(q)) : wikiPages);
+    });
+
+    document.getElementById('wikiSelectAllBtn').addEventListener('click', () => {
+        const q = document.getElementById('wikiSearch').value.trim().toLowerCase();
+        const visible = q ? wikiPages.filter(p => p.name.toLowerCase().includes(q)) : wikiPages;
+        const allSelected = visible.every(p => wikiSelected.has(p.name));
+        if (allSelected) visible.forEach(p => wikiSelected.delete(p.name));
+        else visible.forEach(p => wikiSelected.add(p.name));
+        renderWikiPageList(visible);
+    });
+
+    document.getElementById('wikiDeleteSelectedBtn').addEventListener('click', deleteSelectedWikiPages);
 
     // --- Usage Dashboard ---
     let usagePeriod = '24h';

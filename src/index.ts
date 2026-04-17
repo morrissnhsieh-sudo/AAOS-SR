@@ -14,7 +14,7 @@ import { io_list_installed_skills, io_disable_skill, io_receive_skill_install_re
 import { register_native_tools } from './tools/native_tools';
 import { register_iot_tools } from './tools/iot_tools';
 import { register_a2a_tools } from './tools/a2a_tools';
-import { register_wiki_tools, list_wiki_pages, read_wiki_page, ensure_wiki_structure } from './tools/wiki_tools';
+import { register_wiki_tools, list_wiki_pages, read_wiki_page, delete_wiki_page, ensure_wiki_structure } from './tools/wiki_tools';
 import { start_scheduler_engine, stop_scheduler_engine, activate_job, deactivate_job, run_job_now } from './scheduler/scheduler_engine';
 import { register_scheduler_tools } from './scheduler/scheduler_tools';
 import { register_playwright_tools, shutdown_playwright } from './tools/playwright_mcp_bridge';
@@ -386,6 +386,23 @@ app.post('/api/wiki/lint', async (req, res) => {
     } catch (e: any) {
         res.status(500).json({ ok: false, error: e.message });
     }
+});
+
+app.delete('/api/wiki/pages/*', (req, res) => {
+    const name = (req.params as any)[0] as string;
+    if (!name || /\.\./.test(name)) { res.status(400).json({ ok: false, error: 'Invalid page name' }); return; }
+    const result = delete_wiki_page(name);
+    if (!result.ok) { res.status(result.error?.includes('not found') ? 404 : 400).json(result); return; }
+    res.json({ ok: true, deleted: name });
+});
+
+app.delete('/api/wiki/pages', async (req, res) => {
+    const { names } = req.body as { names: string[] };
+    if (!Array.isArray(names) || names.length === 0) { res.status(400).json({ ok: false, error: 'names array required' }); return; }
+    const results = names.map(n => ({ name: n, ...delete_wiki_page(n) }));
+    const deleted = results.filter(r => r.ok).map(r => r.name);
+    const failed  = results.filter(r => !r.ok);
+    res.json({ ok: failed.length === 0, deleted, failed });
 });
 
 // ── Scheduler REST API ─────────────────────────────────────────────────────────
