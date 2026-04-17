@@ -303,7 +303,7 @@ function find_windows_python(): string {
 const WINDOWS_PYTHON = process.platform === 'win32' ? find_windows_python() : 'python3';
 
 const CRED_SCRIPT = path.join(
-    process.env.AAOS_WORKSPACE || path.join(process.env.USERPROFILE || process.env.HOME || '', '.aaos'),
+    process.env.AAOS_WORKSPACE || path.join(process.env.USERPROFILE || process.env.HOME || '', '.aaos-sr'),
     'scripts', 'credential_manager.py'
 );
 
@@ -378,7 +378,7 @@ async function perform_web_login(service: string): Promise<LoginResult> {
                    `MANDATORY: Use IMAP instead. ` +
                    `1. Call credentials_read(service="outlook_imap") to check for saved credentials. ` +
                    `2. If not found: ask the user to create a Microsoft App Password at https://account.microsoft.com/security → Advanced security options → App passwords, then call credentials_save(service="outlook_imap", fields={email:"...", password:"..."}).` +
-                   `3. Call sys_info() to get pythonExe, then run: bash_exec("{pythonExe} C:/Users/User/.aaos/scripts/outlook_imap.py unread 3 {email} {password}").`
+                   `3. Call sys_info() to get pythonExe, then run: bash_exec("{pythonExe} C:/Users/User/.aaos-sr/scripts/outlook_imap.py unread 3 {email} {password}").`
         };
     }
 

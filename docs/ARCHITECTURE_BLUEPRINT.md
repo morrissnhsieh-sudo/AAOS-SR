@@ -47,7 +47,7 @@ Do NOT edit manually ??re-run /docblueprint if changes are needed.
 | C-016 | Compaction keeps last 20 msgs | memory_system ??COMPACTION_KEEP_RECENT env |
 | C-017 | Compaction queue timeout 30s | memory_system ??CompactionTimeoutError |
 | C-018 | LINE `message` type only (MVP) | channel_manager ??ignore other event types |
-| C-019 | SkillStore ??registry.json | skill_manager ??~/.aaos/skills/registry.json |
+| C-019 | SkillStore ??registry.json | skill_manager ??~/.aaos-sr-sr/skills/registry.json |
 | C-020 | SessionStore in-memory + warm start | channel_manager ??Map<string, Session> |
 | C-021 | ACP pipeline max 10 stages | acp_runtime ??PipelineLimitError |
 | C-022 | Subsystem ping timeout 10s | heartbeat_monitor ??Promise.race |

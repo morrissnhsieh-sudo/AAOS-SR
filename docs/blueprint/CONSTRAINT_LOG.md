@@ -29,7 +29,7 @@ All constraints are immutable. /codegenerate and /codeverify treat these as hard
 - Scope: `src/channel/channel_manager.ts`, `src/nodes/node_manager.ts`
 - Forbidden: socket.io, uWebSockets.js, native WebSocket
 
-**CONSTRAINT-004 | Storage: File system only (`~/.aaos/`)**
+**CONSTRAINT-004 | Storage: File system only (`~/.aaos-sr-sr/`)**
 - Source: Contract S8
 - Decision: All persistence uses Node.js `fs` module. No SQLite, PostgreSQL, Redis, or any DB engine.
 - Rationale: Contract S8 specifies file system storage only.
@@ -142,7 +142,7 @@ All constraints are immutable. /codegenerate and /codeverify treat these as hard
 - Scope: `src/channel/channel_manager.ts`
 - Forbidden: Processing follow/unfollow/postback events in MVP
 
-**CONSTRAINT-019 | SkillStore persisted as JSON file at `~/.aaos/skills/registry.json` (OQ-004)**
+**CONSTRAINT-019 | SkillStore persisted as JSON file at `~/.aaos-sr-sr/skills/registry.json` (OQ-004)**
 - Source: SDD S8/OQ-004
 - Decision: SkillStore reads/writes `${OPENCLAW_WORKSPACE}/skills/registry.json`. Loaded at startup.
 - Rationale: File-based persistence consistent with overall storage constraint.
@@ -151,7 +151,7 @@ All constraints are immutable. /codegenerate and /codeverify treat these as hard
 
 **CONSTRAINT-020 | SessionStore is in-memory for MVP; warm-start from JSONL (OQ-005)**
 - Source: SDD S8/OQ-005
-- Decision: Sessions stored in a `Map<string, Session>` in memory. On startup, existing JSONL files in `~/.aaos/sessions/` are scanned to reconstruct session metadata.
+- Decision: Sessions stored in a `Map<string, Session>` in memory. On startup, existing JSONL files in `~/.aaos-sr-sr/sessions/` are scanned to reconstruct session metadata.
 - Rationale: Simpler for MVP; JSONL files provide warm-start recovery.
 - Scope: `src/channel/channel_manager.ts`
 - Forbidden: Writing session index to disk in MVP

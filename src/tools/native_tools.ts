@@ -303,7 +303,7 @@ export function register_native_tools(): void {
                 pathSep:         path.sep,
                 nodeVersion:     process.version,
                 pythonExe:       WINDOWS_PYTHON,  // correct Python executable to use with webcam_capture
-                workspace:       process.env.AAOS_WORKSPACE || path.join(os.homedir(), '.aaos'),  // active workspace — use this for all workspace-relative paths
+                workspace:       process.env.AAOS_WORKSPACE || path.join(os.homedir(), '.aaos-sr'),  // active workspace — use this for all workspace-relative paths
                 snapshotsDir:    process.env.AAOS_SNAPSHOTS_DIR || path.join(os.tmpdir(), 'aaos_snapshots'),  // where webcam photos are saved
                 snapshotsUrl:    '/snapshots',   // web path to access saved photos
                 commandStyle:    isWin
@@ -369,7 +369,7 @@ export function register_native_tools(): void {
         async (args: { fact: string }) => {
             try {
                 const workspace = process.env.AAOS_WORKSPACE ||
-                    path.join(process.env.HOME || process.env.USERPROFILE || '', '.aaos');
+                    path.join(process.env.HOME || process.env.USERPROFILE || '', '.aaos-sr');
                 const result = append_validated_memory_fact(workspace, args.fact);
                 if (!result.ok) return { ok: false, error: result.reason };
                 return { ok: true, stored: args.fact };
@@ -665,7 +665,7 @@ print(json.dumps({"ok": True, "frames": frames_b64, "total_frames": total, "fps"
             return new Promise((resolve) => {
                 const scriptPath = path.join(
                     process.env.AAOS_WORKSPACE ||
-                    path.join(process.env.USERPROFILE || process.env.HOME || '', '.aaos'),
+                    path.join(process.env.USERPROFILE || process.env.HOME || '', '.aaos-sr'),
                     'scripts', 'webcam_capture.py'
                 );
                 const mode = args.prompt ? 'analyze' : 'capture';
@@ -920,7 +920,7 @@ print(json.dumps({"ok": True, "frames": frames_b64, "total_frames": total, "fps"
     //   credentials_delete — remove stored credentials
 
     const CRED_SCRIPT = path.join(
-        process.env.AAOS_WORKSPACE || path.join(process.env.USERPROFILE || process.env.HOME || '', '.aaos'),
+        process.env.AAOS_WORKSPACE || path.join(process.env.USERPROFILE || process.env.HOME || '', '.aaos-sr'),
         'scripts', 'credential_manager.py'
     );
 

@@ -35,7 +35,7 @@ interface A2ADelegateResult {
 
 function get_workspace(): string {
     return process.env.AAOS_WORKSPACE ||
-        path.join(os.homedir(), '.aaos');
+        path.join(os.homedir(), '.aaos-sr');
 }
 
 function load_agent_registry(): A2AAgent[] {

@@ -26,7 +26,7 @@ export const SESSION_LOG_DIR = 'sessions';
 export const MEMORY_DIR = 'memory';
 export const WORKSPACE_DIR = 'workspace';
 
-function getWorkspace() { return process.env.AAOS_WORKSPACE || path.join(process.env.HOME || process.env.USERPROFILE || '', '.aaos'); }
+function getWorkspace() { return process.env.AAOS_WORKSPACE || path.join(process.env.HOME || process.env.USERPROFILE || '', '.aaos-sr'); }
 
 /**
  * Sanitise a session ID for use as a filename.

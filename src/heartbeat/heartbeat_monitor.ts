@@ -24,7 +24,7 @@ export const SUBSYSTEM_PING_TIMEOUT_MS = 10000;
 let lastHealthResult: GatewayHealth | null = null;
 
 function getWorkspace(): string {
-    return process.env.AAOS_WORKSPACE || path.join(os.homedir(), '.aaos');
+    return process.env.AAOS_WORKSPACE || path.join(os.homedir(), '.aaos-sr');
 }
 
 /** Pings the filesystem memory subsystem */
@@ -105,7 +105,7 @@ export async function collect_gateway_health(): Promise<GatewayHealth> {
 }
 
 /**
- * Writes a human-readable status snapshot to ~/.aaos/HEARTBEAT.md.
+ * Writes a human-readable status snapshot to ~/.aaos-sr/HEARTBEAT.md.
  * The agent reads this file at the start of every run so it has live context
  * about its own system health, uptime, loaded skills, and session history.
  */

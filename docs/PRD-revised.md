@@ -469,7 +469,7 @@ Then the gateway Marks the node as disconnected, retries on the next available n
 | FR-020 | [MUST] | A channel that fails to connect within the 120-second grace period shall be flagged as degraded |
 | FR-021 | [MUST] | The gateway shall perform automatic context compaction when a conversation exceeds the LLM context window |
 | FR-022 | [MUST] | Context compaction shall summarize older messages via LLM and save summaries to the memory directory |
-| FR-023 | [MUST] | The memory system shall persist conversation history as JSONL session logs under `~/.aaos/` |
+| FR-023 | [MUST] | The memory system shall persist conversation history as JSONL session logs under `~/.aaos-sr-sr/` |
 | FR-024 | [MUST] | The agent shall read HEARTBEAT.md, BOOT.md, and MEMORY.md at the start of every run |
 | FR-025 | [MUST] | The agent shall write user-requested facts to MEMORY.md |
 | FR-026 | [MUST] | The Plugin Engine shall load and manage provider plugins (Anthropic, Ollama, Google, Browser) |
@@ -517,7 +517,7 @@ Then the gateway Marks the node as disconnected, retries on the next available n
 
 - **Language**: TypeScript
 - **Framework**: Express.js (HTTP) + `ws` library (WebSocket)
-- **Storage**: File system (`~/.aaos/`) ??JSONL for session logs, Markdown for memory
+- **Storage**: File system (`~/.aaos-sr-sr/`) ??JSONL for session logs, Markdown for memory
 - **ORM**: None
 - **Auth**: JWT (device identity) + HMAC-SHA256 (LINE webhook)
 - **Test runner**: Jest

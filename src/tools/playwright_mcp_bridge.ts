@@ -40,7 +40,7 @@ interface PendingCall {
 
 function get_profile_dir(): string {
     const workspace = process.env.AAOS_WORKSPACE ||
-        path.join(process.env.USERPROFILE || process.env.HOME || '', '.aaos');
+        path.join(process.env.USERPROFILE || process.env.HOME || '', '.aaos-sr');
     const dir = path.join(workspace, 'playwright_profile');
     fs.mkdirSync(dir, { recursive: true });
     return dir;

@@ -93,7 +93,7 @@
 | FR-020 | MUST | A channel that fails to connect within the 120-second grace period shall be flagged as degraded |
 | FR-021 | MUST | The gateway shall perform automatic context compaction when a conversation exceeds the LLM context window |
 | FR-022 | MUST | Context compaction shall summarize older messages via LLM and save summaries to the memory directory |
-| FR-023 | MUST | The memory system shall persist conversation history as JSONL session logs under `~/.aaos/` |
+| FR-023 | MUST | The memory system shall persist conversation history as JSONL session logs under `~/.aaos-sr-sr/` |
 | FR-024 | MUST | The agent shall read HEARTBEAT.md, BOOT.md, and MEMORY.md at the start of every run |
 | FR-025 | MUST | The agent shall write user-requested facts to MEMORY.md |
 | FR-026 | MUST | The Plugin Engine shall load and manage provider plugins (Anthropic, Ollama, Google, Browser) |
@@ -207,7 +207,7 @@
 | Field | Type | Required | Default | Notes |
 |---|---|---|---|---|
 | id | uuid | yes | auto | primary key |
-| file_path | string | yes | ??| absolute path under `~/.aaos/` |
+| file_path | string | yes | ??| absolute path under `~/.aaos-sr-sr/` |
 | file_type | enum(HEARTBEAT, BOOT, MEMORY, session_summary, session_log) | yes | ??| ??|
 | session_id | uuid | no | null | FK ??Session (for session logs/summaries) |
 | created_at | datetime | yes | now | ??|
@@ -409,7 +409,7 @@
 |---|---|
 | Language | TypeScript |
 | Framework | Express.js (HTTP) + `ws` library (WebSocket) |
-| Database | File system (`~/.aaos/`) ??JSONL for session logs, Markdown for memory |
+| Database | File system (`~/.aaos-sr-sr/`) ??JSONL for session logs, Markdown for memory |
 | ORM | None |
 | Auth method | JWT (device identity / Control UI) + HMAC-SHA256 (LINE webhook) |
 | Test runner | Jest |

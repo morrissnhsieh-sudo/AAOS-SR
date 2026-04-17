@@ -1,6 +1,0 @@
-version: "1.0.0"
-tools:
-  - name: search_top_news
-    description: "Retrieves the top news headlines based on specified criteria."
-    parameters: {"type":"object","properties":{"category":{"type":"string","description":"The category of news to search for (e.g., business, technology, sports). If not specified, returns general top news."},"country":{"type":"string","description":"The country for which to retrieve top news (e.g., 'us', 'gb', 'in'). If not specified, defaults to a global selection."},"keywords":{"type":"string","description":"Keywords to filter news articles by.  Separate multiple keywords with commas."}},"required":[]}
-    entrypoint: "./index.js"

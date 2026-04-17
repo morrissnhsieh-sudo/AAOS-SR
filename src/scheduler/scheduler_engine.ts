@@ -1,7 +1,7 @@
 /**
  * Scheduler Engine — node-cron based job runner
  *
- * Loads persisted jobs from ~/.aaos/schedules.json at startup,
+ * Loads persisted jobs from ~/.aaos-sr/schedules.json at startup,
  * runs each job's message through the AAOS agent on schedule,
  * and records results back to the store.
  *

@@ -157,7 +157,7 @@ TZ=Asia/Hong_Kong
 AAOS_LLM_PROVIDER=anthropic
 ANTHROPIC_API_KEY=sk-ant-api03-...
 
-# Workspace (default: ~/.aaos — usually no need to set)
+# Workspace (default: ~/.aaos-sr — usually no need to set)
 AAOS_WORKSPACE=/home/yourname/.aaos
 
 # Google credentials (if using Vertex/Gemini)
@@ -183,7 +183,7 @@ TZ=Asia/Hong_Kong
 AAOS_LLM_PROVIDER=anthropic
 ANTHROPIC_API_KEY=sk-ant-api03-...
 
-# Workspace (default: ~/.aaos — usually no need to set)
+# Workspace (default: ~/.aaos-sr — usually no need to set)
 AAOS_WORKSPACE=/Users/yourname/.aaos
 
 # Google credentials (if using Vertex/Gemini)
@@ -217,7 +217,7 @@ TZ=Asia/Hong_Kong
 | `ANTHROPIC_VERTEX_REGION` | `us-east5` | Vertex region for Claude |
 | `GOOGLE_APPLICATION_CREDENTIALS` | auto-detected | Path to GCP service account JSON |
 | **Storage** | | |
-| `AAOS_WORKSPACE` | `~/.aaos` | Root workspace directory for all AAOS data |
+| `AAOS_WORKSPACE` | `~/.aaos-sr` | Root workspace directory for all AAOS data |
 | `AAOS_SNAPSHOTS_DIR` | `$TMPDIR/aaos_snapshots` | Directory for webcam snapshot images |
 | **Server** | | |
 | `JWT_SECRET` | `secret` | Secret for signing device JWT tokens — **change in production** |

@@ -1,5 +1,5 @@
 /**
- * Scheduler Store — persists scheduled jobs to ~/.aaos/schedules.json
+ * Scheduler Store — persists scheduled jobs to ~/.aaos-sr/schedules.json
  *
  * Job lifecycle:
  *   created → enabled → (running per cron tick) → paused | deleted
@@ -32,7 +32,7 @@ export type JobUpdate = Partial<Omit<ScheduledJob, 'name' | 'created_at'>>;
 
 function store_path(): string {
     const workspace = process.env.AAOS_WORKSPACE ||
-        path.join(os.homedir(), '.aaos');
+        path.join(os.homedir(), '.aaos-sr');
     return path.join(workspace, 'schedules.json');
 }
 

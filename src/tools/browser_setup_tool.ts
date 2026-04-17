@@ -5,7 +5,7 @@
  *
  * KEY DESIGN: This tool restarts the playwright-mcp bridge in HEADED (visible)
  * mode.  The user logs in through that real browser window.  Cookies are saved
- * to the shared profile (~/.aaos/playwright_profile/).  Then the bridge is
+ * to the shared profile (~/.aaos-sr/playwright_profile/).  Then the bridge is
  * shut down; the next web_login call restarts it in HEADLESS mode with the
  * saved session — no login ever needed again.
  *
@@ -147,7 +147,7 @@ export function register_browser_setup_tool(): void {
             }
 
             const workspace = process.env.AAOS_WORKSPACE ||
-                path.join(process.env.USERPROFILE || process.env.HOME || '', '.aaos');
+                path.join(process.env.USERPROFILE || process.env.HOME || '', '.aaos-sr');
             const profileDir = path.join(workspace, 'playwright_profile');
             fs.mkdirSync(profileDir, { recursive: true });
 

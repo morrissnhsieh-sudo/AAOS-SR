@@ -249,7 +249,7 @@ function resolve_path(inputPath: string): string {
 
 export function get_wiki_dir(): string {
     const workspace = process.env.AAOS_WORKSPACE ||
-        path.join(process.env.HOME || process.env.USERPROFILE || '', '.aaos');
+        path.join(process.env.HOME || process.env.USERPROFILE || '', '.aaos-sr');
     return path.join(workspace, 'wiki');
 }
 

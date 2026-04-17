@@ -67,7 +67,7 @@ const PROBE_TIMEOUT_MS  = 350;
 const SCAN_HOST_BATCH   = 24;   // concurrent hosts per scan wave
 const MAX_MSG_BUFFER    = 100;  // messages buffered per topic
 const DEVICE_REGISTRY   = path.join(
-    process.env.AAOS_WORKSPACE || path.join(os.homedir(), '.aaos'),
+    process.env.AAOS_WORKSPACE || path.join(os.homedir(), '.aaos-sr'),
     'iot', 'devices.json'
 );
 

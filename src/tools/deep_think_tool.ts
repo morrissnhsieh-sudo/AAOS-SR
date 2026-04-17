@@ -39,7 +39,7 @@ Respond with ONLY valid JSON — no markdown fences, no commentary:
   "steps": [
     {
       "id": 1,
-      "action": "Exact instruction — name the tool and parameters. E.g. 'Call bash_exec(command=\"systemctl status postgresql\")' or 'Call file_read(path=\"~/.aaos/.env\") and look for DB_URL'",
+      "action": "Exact instruction — name the tool and parameters. E.g. 'Call bash_exec(command=\"systemctl status postgresql\")' or 'Call file_read(path=\"~/.aaos-sr/.env\") and look for DB_URL'",
       "verification": "Observable, binary criterion that proves THIS step succeeded. E.g. 'Output contains active (running)'"
     }
   ],

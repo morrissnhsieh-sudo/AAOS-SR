@@ -31,7 +31,7 @@ export const SKILL_REGISTRY_FILE = 'skills/registry.json';
 export const SKILL_INSTALL_DIR = 'skills';
 
 function getWorkspace(): string {
-    return process.env.AAOS_WORKSPACE || path.join(process.env.HOME || '', '.aaos');
+    return process.env.AAOS_WORKSPACE || path.join(process.env.HOME || '', '.aaos-sr');
 }
 
 export function io_read_skill_md(skillMdPath: string): string | null {

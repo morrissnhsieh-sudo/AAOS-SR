@@ -1,6 +1,6 @@
 /**
  * AAOS Usage Tracker — records token consumption and cost per LLM call.
- * Data is appended as JSONL to ~/.aaos/usage/usage.jsonl
+ * Data is appended as JSONL to ~/.aaos-sr/usage/usage.jsonl
  */
 import * as fs from 'fs';
 import * as path from 'path';
@@ -53,7 +53,7 @@ export interface UsageSummary {
 
 function get_usage_dir(): string {
     const workspace = process.env.AAOS_WORKSPACE ||
-        path.join(process.env.HOME || process.env.USERPROFILE || '', '.aaos');
+        path.join(process.env.HOME || process.env.USERPROFILE || '', '.aaos-sr');
     return path.join(workspace, 'usage');
 }
 

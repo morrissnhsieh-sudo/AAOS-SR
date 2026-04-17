@@ -605,7 +605,7 @@ export async function start_agent_run(session: Session, message: InternalMessage
         }
 
         const workspace = process.env.AAOS_WORKSPACE ||
-            require('path').join(process.env.HOME || process.env.USERPROFILE || '', '.aaos');
+            require('path').join(process.env.HOME || process.env.USERPROFILE || '', '.aaos-sr');
         load_model_config(workspace);  // refresh per-role config from disk on each run
         const memCtx = io_load_workspace_memory_files(workspace);
         const activeSkills = io_list_installed_skills().filter(s => s.status === 'enabled');

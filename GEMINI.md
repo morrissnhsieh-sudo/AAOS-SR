@@ -25,7 +25,7 @@ Derived from docs/REQUIREMENTS_CONTRACT.md Section 8.
 
 - **Language**: TypeScript
 - **Framework**: Express.js (HTTP) + `ws` library (WebSocket)
-- **Database**: File system (`~/.aaos/`) ??JSONL for session logs, Markdown for memory
+- **Database**: File system (`~/.aaos-sr/`) ??JSONL for session logs, Markdown for memory
 - **External APIs / Services**: LINE Messaging API, Anthropic API, Ollama, Google AI, Browser plugin
 - **Test Framework**: Jest
 - **Package Manager**: npm

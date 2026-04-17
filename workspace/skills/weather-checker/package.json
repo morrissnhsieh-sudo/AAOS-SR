@@ -1,6 +1,0 @@
-{
-  "name": "weather-checker",
-  "version": "1.0.0",
-  "description": "Fetches and returns the current weather conditions for a specified city.",
-  "main": "index.js"
-}
